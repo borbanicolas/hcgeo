@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Building2, Phone, Mail, Pencil, Trash2, User, Filter } from "lucide-react";
+import { Plus, Search, Building2, Phone, Mail, Pencil, Trash2, User, Filter, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
+import { ImportLeadDialog } from "@/components/ImportLeadDialog";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
 import {
@@ -21,6 +21,7 @@ const Clientes = () => {
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState("Todos");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -87,10 +88,23 @@ const Clientes = () => {
             {clientes.length} cliente{clientes.length !== 1 ? "s" : ""} · {countPJ} PJ · {countPF} PF
           </p>
         </div>
-        <Button className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm" onClick={() => { setEditingCliente(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4" />
-          Novo Cliente
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            className="gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+            onClick={() => setImportDialogOpen(true)}
+          >
+            <UserCheck className="h-4 w-4" />
+            Importar de Leads
+          </Button>
+          <Button 
+            className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm" 
+            onClick={() => { setEditingCliente(null); setDialogOpen(true); }}
+          >
+            <Plus className="h-4 w-4" />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -190,7 +204,19 @@ const Clientes = () => {
         </div>
       )}
 
-      <ClienteFormDialog open={dialogOpen} onOpenChange={setDialogOpen} cliente={editingCliente} onSaved={fetchClientes} />
+      {/* Dialogs */}
+      <ClienteFormDialog 
+        open={dialogOpen} 
+        onOpenChange={setDialogOpen} 
+        cliente={editingCliente} 
+        onSaved={fetchClientes} 
+      />
+
+      <ImportLeadDialog 
+        isOpen={importDialogOpen} 
+        onOpenChange={setImportDialogOpen} 
+        onSuccess={fetchClientes}
+      />
 
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
