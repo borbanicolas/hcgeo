@@ -1,20 +1,15 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Drill, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { Drill, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [roleName, setRoleName] = useState("user");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -23,12 +18,10 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      const endpoint = isLogin ? "/auth/signin" : "/auth/signup";
-      
-      const res = await fetch(`${API_URL}${endpoint}`, {
+      const res = await fetch(`${API_URL}/auth/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isLogin ? { email, password } : { email, password, role_name: roleName })
+        body: JSON.stringify({ email, password })
       });
       
       const data = await res.json();
@@ -45,8 +38,8 @@ export default function Auth() {
 
     } catch (err: any) {
       toast({
-        title: "Erro",
-        description: err.message || "Algo deu errado.",
+        title: "Erro de Login",
+        description: err.message || "Credenciais inválidas ou erro no servidor.",
         variant: "destructive",
       });
     } finally {
@@ -63,51 +56,18 @@ export default function Auth() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary mb-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary mb-4 shadow-lg shadow-primary/20">
             <Drill className="h-7 w-7 text-primary-foreground" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">GeoManager</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {isLogin ? "Acesse sua conta" : "Crie sua conta"}
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">GeoManager</h1>
+          <p className="text-sm text-muted-foreground mt-2">
+            Acesse sua conta para gerenciar leads e obras
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Nome completo</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Seu nome"
-                  className="pl-9"
-                  required
-                />
-              </div>
-            </div>
-          )}
-
-          {!isLogin && (
-            <div className="space-y-1.5">
-              <Label htmlFor="role">Perfil de Acesso</Label>
-              <Select value={roleName} onValueChange={setRoleName}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um perfil" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Usuário Comum</SelectItem>
-                  <SelectItem value="financeiro">Financeiro</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Corporativo</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -116,14 +76,16 @@ export default function Auth() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="pl-9"
+                className="pl-9 h-11"
                 required
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Senha</Label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Senha</Label>
+            </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -132,14 +94,14 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="pl-9 pr-10"
+                className="pl-9 pr-10 h-11"
                 required
-                minLength={6}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 transition-colors"
+                title={showPassword ? "Ocultar senha" : "Mostrar senha"}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -149,21 +111,11 @@ export default function Auth() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 text-sm font-semibold transition-all active:scale-[0.98]"
           >
-            {loading ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}
+            {loading ? "Autenticando..." : "Entrar no Sistema"}
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="font-medium text-accent hover:underline"
-          >
-            {isLogin ? "Cadastre-se" : "Faça login"}
-          </button>
-        </p>
       </motion.div>
     </div>
   );

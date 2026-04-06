@@ -15,17 +15,16 @@ O arquivo `Makefile` na raiz abstrai a complexidade do Docker.
 
 ---
 
-## 2. Fluxo de Deploy (Passo-a-Passo)
+## 2. Fluxo de Deploy (Git-First)
 
-O deploy é feito via "Push & Pull":
+O deploy é feito de forma síncrona através do repositório Git, eliminando a dependência de um registro externo (Docker Hub).
 
-1. **Local:** O desenvolvedor roda `make deploy TAG=vX.Y.Z`.
-2. **Registro:** As imagens compiladas são enviadas para o [Docker Hub / borbanicolas](https://hub.docker.com/u/borbanicolas).
-3. **VPS Sync:** O Makefile sincroniza o arquivo `docker-compose.yml` local com a VPS via SCP.
-4. **VPS Pull:** O desenvolvedor (ou script) entra na VPS e executa:
-   ```bash
-   docker compose pull && docker compose up -d --force-recreate
-   ```
+1. **Local:** O desenvolvedor envia o código para o GitHub (`git add . && git commit && git push`).
+2. **VPS:** O servidor puxa as novas alterações (`cd /opt/hcgeo && git pull`).
+3. **Rebuild:** O comando `docker compose up -d --build` reconstrói as imagens localmente no hardware da VPS usando o código recém-baixado.
+
+> [!NOTE]
+> Este método garante que o código na VPS seja sempre idêntico ao do repositório Git, mas requer que a VPS tenha capacidade de processamento para rodar o build do Vite (Front-end).
 
 ---
 

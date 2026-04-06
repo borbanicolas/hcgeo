@@ -54,7 +54,7 @@ services:
 
   # ─── Frontend (Vite + React → Nginx) ──────────────────────────────
   frontend:
-    image: borbanicolas/hcgeo-frontend:${TAG:-latest}
+    image: hcgeo-frontend:latest
     build:
       context: ./hcgeogestao
       dockerfile: Dockerfile
@@ -73,7 +73,7 @@ services:
 
   # ─── Backend API (Node.js / Express) ───────────────────────────────
   api:
-    image: borbanicolas/hcgeo-api:${TAG:-latest}
+    image: hcgeo-api:latest
     build:
       context: ./hcgeogestao-api
       dockerfile: Dockerfile

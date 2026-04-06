@@ -8,18 +8,36 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_2026';
 const TOKEN_EXPIRY = '1h';
 
-// ─── Sign Up ────────────────────────────────────────────────────────
+// ─── Sign Up (Admin Protected) ──────────────────────────────────────
 router.post('/signup', async (req, res) => {
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Token de administração obrigatório' });
+    
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Check if the requester is an admin
+    const requester = await pool.query(`
+      SELECT r.name as role 
+      FROM auth_users u 
+      LEFT JOIN sys_roles r ON u.role_id = r.id 
+      WHERE u.id = $1
+    `, [decoded.sub]);
+
+    if (requester.rows.length === 0 || requester.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Apenas administradores podem criar novos usuários' });
+    }
+
     const { email, password, role_name = 'user' } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
 
     // Check if user already exists
     const existing = await pool.query('SELECT id FROM auth_users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'User already exists' });
+      return res.status(409).json({ error: 'Este e-mail já está cadastrado' });
     }
 
     const id = uuidv4();
@@ -36,19 +54,14 @@ router.post('/signup', async (req, res) => {
       [id, email, passwordHash, roleId]
     );
 
-    const token = jwt.sign({ sub: id, email, role: role_name }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
-
     res.status(201).json({
-      user: { id, email, role: role_name },
-      session: {
-        access_token: token,
-        token_type: 'bearer',
-        expires_in: 3600,
-      },
+      success: true,
+      user: { id, email, role: role_name }
     });
+
   } catch (err) {
     console.error('[AUTH] Signup error:', err.message);
-    res.status(500).json({ error: 'Failed to create user' });
+    res.status(500).json({ error: 'Falha ao criar usuário. O token pode estar expirado.' });
   }
 });
 

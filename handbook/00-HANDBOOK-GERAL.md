@@ -21,23 +21,26 @@ O sistema opera de forma orquestrada através de containers Docker, divididos em
 
 ---
 
-## 2. Fluxo de Desenvolvimento e Deploy (CI/CD)
+## 2. Fluxo de Deploy (Git-First)
 
-Não realizamos mais builds manuais ou cópias de arquivos via FTP. Utilizamos um pipeline baseado em **Makefile** e **Docker Hub**.
+O deploy é feito de forma síncrona através do repositório Git:
 
-### 2.1 Comandos Principais (Local)
-Para trabalhar no projeto, utilize os atalhos do `Makefile` na raiz:
-- `make build`: Compila as imagens localmente com as configurações de produção.
-- `make push`: Envia as imagens compiladas para o Docker Hub (`borbanicolas`).
-- `make deploy TAG=v1.0.X`: O comando "mágico". Faz o build, o push e já envia o arquivo `docker-compose.yml` atualizado para a VPS via SCP.
+1. **Local:** O desenvolvedor envia o código para o GitHub (`git push`).
+2. **VPS:** O servidor puxa o código novo (`git pull`).
+3. **Rebuild:** O comando `docker compose up -d --build` reconstrói as imagens localmente na VPS.
+
+> [!NOTE]
+> Este método é mais simples e dispensa o uso de um Registro de Imagens externo (como Docker Hub), mas exige que a VPS compile o Front-end (Vite), o que pode levar alguns minutos.
+
+---
 
 ### 2.2 Rodando Localmente (WSL)
-Para testar e desenvolver no seu computador:
+Para desenvolver no seu computador, o fluxo continua com alta velocidade:
 ```bash
 docker compose up -d --build
 ```
 > [!TIP]
-> O ambiente local está configurado com **Hot-Reload**. Qualquer alteração feita no código da API (`hcgeogestao-api/src`) é refletida instantaneamente no container sem necessidade de reiniciar.
+> O ambiente local usa **Hot-Reload** (montagem de volumes). As alterações na API são refletidas na hora, sem precisar de build!
 
 ---
 
