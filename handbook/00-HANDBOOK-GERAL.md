@@ -1,5 +1,6 @@
 # Handbook Geral - HC GeoGestão (Sistema Autônomo)
-
+cd /opt/hcgeo
+docker compose up -d --build
 Este documento centraliza a visão técnica e operacional do ecossistema **HC GeoGestão**, agora totalmente migrado para uma infraestrutura própria (Self-Hosted) via Docker, eliminando a dependência do Supabase Cloud.
 
 ---
@@ -63,3 +64,12 @@ Para detalhes profundos, consulte os outros arquivos deste handbook:
 
 ---
 **Atualizado em: 06/04/2026**
+
+
+docker exec -it hcgeo-db psql -U hcgeo -d hcgeogestao -c "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS failed_attempts INT DEFAULT 0, ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false;"
+
+
+
+docker exec -it hcgeo-db psql -U hcgeo -d hcgeogestao -c "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS last_failed_ip TEXT;"
+```_
+​

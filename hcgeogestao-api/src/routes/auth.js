@@ -54,6 +54,15 @@ router.post('/signup', async (req, res) => {
       [id, email, passwordHash, roleId]
     );
 
+    // Auditoria: Criação de Usuário
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [decoded.sub, 'INSERT', 'auth_users', id, `Criou novo usuário: ${email} (${role_name})`, ip]
+      );
+    } catch(e) {}
+
     res.status(201).json({
       success: true,
       user: { id, email, role: role_name }
@@ -74,23 +83,76 @@ router.post('/signin', async (req, res) => {
     }
 
     const query = `
-      SELECT u.id, u.email, u.password_hash, r.name as role 
+      SELECT u.id, u.email, u.password_hash, u.failed_attempts, u.is_blocked, u.last_failed_ip, r.name as role 
       FROM auth_users u 
       LEFT JOIN sys_roles r ON u.role_id = r.id 
       WHERE u.email = $1
     `;
     const result = await pool.query(query, [email]);
     if (result.rows.length === 0) {
+      // Auditoria: Tentativa com e-mail inexistente
+      try {
+        const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+        await pool.query(
+          'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+          [null, 'LOGIN_FAILURE', 'auth_users', null, `Tentativa com usuário inexistente: ${email}`, ip]
+        );
+      } catch(e) {}
+      
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+
+    // 1. Verificar se já não está bloqueado
+    if (user.is_blocked) {
+      return res.status(403).json({ error: 'Conta bloqueada por excesso de tentativas. Contate o administrador.' });
     }
 
-    const token = jwt.sign({ sub: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    const valid = await bcrypt.compare(password, user.password_hash);
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+
+    if (!valid) {
+      const newAttempts = (user.failed_attempts || 0) + 1;
+      const shouldBlock = newAttempts >= 5;
+
+      // Atualizar contador, status de bloqueio E ÚLTIMO IP DE FALHA
+      await pool.query(
+        'UPDATE auth_users SET failed_attempts = $1, is_blocked = $2, last_failed_ip = $3 WHERE id = $4',
+        [newAttempts, shouldBlock, ip, user.id]
+      );
+
+      // Auditoria: Falha de Login
+      try {
+        const details = shouldBlock 
+          ? `Conta bloqueada após 5 erros: ${email}` 
+          : `Falha de login ${newAttempts}/5 para: ${email}`;
+          
+        await pool.query(
+          'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+          [user.id, 'LOGIN_FAILURE', 'auth_users', user.id, details, ip]
+        );
+      } catch(e) {}
+      
+      return res.status(401).json({ error: 'Auth failed' });
+    }
+
+    // 2. Login com Sucesso: Zerar contador de falhas
+    await pool.query('UPDATE auth_users SET failed_attempts = 0 WHERE id = $1', [user.id]);
+
+    const token = jwt.sign(
+      { sub: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Auditoria: Login com Sucesso
+    try {
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [user.id, 'LOGIN_SUCCESS', 'auth_users', user.id, `Usuário entrou no sistema: ${email}`, ip]
+      );
+    } catch(e) {}
 
     res.json({
       user: { id: user.id, email: user.email, role: user.role },
@@ -205,7 +267,7 @@ router.get('/users', async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT u.id, u.email, r.name as role 
+      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked, u.last_failed_ip
       FROM auth_users u 
       LEFT JOIN sys_roles r ON u.role_id = r.id
       ORDER BY u.email ASC
@@ -234,6 +296,16 @@ router.put('/users/:id/role', async (req, res) => {
     if (roleResult.rows.length === 0) return res.status(400).json({ error: 'Invalid role' });
     
     await pool.query('UPDATE auth_users SET role_id = $1 WHERE id = $2', [roleResult.rows[0].id, targetId]);
+
+    // Auditoria
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [decoded.sub, 'UPDATE', 'auth_users', targetId, `Alterou cargo para: ${role_name}`, ip]
+      );
+    } catch(e) {}
+
     res.json({ success: true, role: role_name });
   } catch (err) {
     res.status(500).json({ error: 'Error updating user role' });
@@ -261,6 +333,100 @@ router.get('/audit', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error fetching audit logs' });
+  }
+});
+
+router.put('/users/:id/email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' });
+    }
+
+    const targetId = req.params.id;
+    await pool.query('UPDATE auth_users SET email = $1 WHERE id = $2', [email, targetId]);
+
+    // Auditoria
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [decoded.sub, 'UPDATE', 'auth_users', targetId, `Alterou e-mail para: ${email}`, ip]
+      );
+    } catch(e) {}
+
+    res.json({ success: true, email });
+  } catch (err) {
+    res.status(500).json({ error: 'Error updating user email' });
+  }
+});
+
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' });
+    }
+
+    const targetId = req.params.id;
+    const newPassword = 'HC-' + Math.random().toString(36).slice(-6).toUpperCase();
+    const hash = await bcrypt.hash(newPassword, 12);
+    
+    await pool.query('UPDATE auth_users SET password_hash = $1 WHERE id = $2', [hash, targetId]);
+
+    // Auditoria
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Resetou senha do usuário', ip]
+      );
+    } catch(e) {}
+
+    res.json({ success: true, newPassword });
+  } catch (err) {
+    res.status(500).json({ error: 'Error resetting password' });
+  }
+});
+
+router.post('/users/:id/unblock', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' });
+    }
+
+    const targetId = req.params.id;
+    await pool.query('UPDATE auth_users SET failed_attempts = 0, is_blocked = false WHERE id = $1', [targetId]);
+
+    // Auditoria
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Desbloqueou conta do usuário', ip]
+      );
+    } catch(e) {}
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error unblocking user' });
   }
 });
 
