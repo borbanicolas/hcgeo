@@ -26,9 +26,10 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { session, loading } = useAuth();
-  console.log('v.1.0.4')
+  console.log('v.1.0.9')
   if (loading) {
     return (
+      //@ts-ignore
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-accent" />
       </div>
