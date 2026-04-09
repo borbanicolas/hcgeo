@@ -207,7 +207,7 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
   const buildNumero = (seq: string) => {
     const yr = new Date(form.data_emissao || Date.now()).getFullYear();
     const mo = String(new Date(form.data_emissao || Date.now()).getMonth() + 1).padStart(2, "0");
-    return `PTC_HC_Nº${seq.padStart(2, "0")}_${yr}_${mo}`;
+    return `HC_PTC_Nº${seq.padStart(2, "0")}_${yr}_${mo}`;
   };
 
   const parseSequencial = (numero: string) => {
@@ -389,8 +389,22 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
   const desconto = subtotal * (form.desconto_percentual / 100);
   const total = subtotal - desconto;
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.titulo.trim()) newErrors.titulo = "O título é obrigatório";
+    if (!form.contratante_nome.trim()) newErrors.contratante_nome = "O nome do contratante é obrigatório";
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = async () => {
-    if (!form.titulo.trim()) { toast.error("Título é obrigatório"); return; }
+    if (!validate()) {
+      toast.error("Por favor, preencha todos os campos obrigatórios (*)");
+      return;
+    }
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -476,7 +490,17 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
     }
   };
 
-  const set = (key: string, val: any) => setForm((f) => ({ ...f, [key]: val }));
+  const set = (key: string, val: any) => {
+    setForm((f) => ({ ...f, [key]: val }));
+    // Clear error for this field when user types
+    if (errors[key]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
   const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   return (
@@ -492,11 +516,21 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
             <AccordionTrigger className="text-sm font-semibold">Dados Gerais da Proposta</AccordionTrigger>
             <AccordionContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <div className="sm:col-span-2"><Label>Título *</Label><Input value={form.titulo} onChange={(e) => set("titulo", e.target.value)} placeholder="Ex: Sondagem SPT - Edifício Residencial" /></div>
+                <div className="sm:col-span-2">
+                  <Label htmlFor="titulo" className={errors.titulo ? "text-destructive" : ""}>Título *</Label>
+                  <Input 
+                    id="titulo"
+                    value={form.titulo} 
+                    onChange={(e) => set("titulo", e.target.value)} 
+                    placeholder="Ex: Sondagem SPT - Edifício Residencial" 
+                    className={errors.titulo ? "border-destructive ring-destructive" : ""}
+                  />
+                  {errors.titulo && <p className="text-[10px] text-destructive mt-1">{errors.titulo}</p>}
+                </div>
                 <div>
                   <Label>Nº da Proposta</Label>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">PTC_HC_Nº</span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">HC_PTC_Nº</span>
                     <Input
                       value={numeroSequencial}
                       onChange={(e) => setNumeroSequencial(e.target.value.replace(/\D/g, ""))}
@@ -505,7 +539,7 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
                     />
                     <span className="text-xs text-muted-foreground whitespace-nowrap">_{new Date(form.data_emissao || Date.now()).getFullYear()}_{String(new Date(form.data_emissao || Date.now()).getMonth() + 1).padStart(2, "0")}_{form.revisao || "R.00"}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Formato: PTC_HC_NºXX_ANO_MÊS_R.00 · Nº sequencial editável (auto se vazio)</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Formato: HC_PTC_NºXX_ANO_MÊS_R.00 · Nº sequencial editável (auto se vazio)</p>
                 </div>
                 <div>
                   <Label>Vincular a Cliente Cadastrado</Label>
@@ -515,8 +549,15 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
                   </Select>
                 </div>
                 <div>
-                  <Label>Contratante (Nome) *</Label>
-                  <Input value={form.contratante_nome} onChange={(e) => set("contratante_nome", e.target.value)} placeholder="Nome do contratante / empresa" />
+                  <Label htmlFor="contratante_nome" className={errors.contratante_nome ? "text-destructive" : ""}>Contratante (Nome) *</Label>
+                  <Input 
+                    id="contratante_nome"
+                    value={form.contratante_nome} 
+                    onChange={(e) => set("contratante_nome", e.target.value)} 
+                    placeholder="Nome do contratante / empresa" 
+                    className={errors.contratante_nome ? "border-destructive ring-destructive" : ""}
+                  />
+                  {errors.contratante_nome && <p className="text-[10px] text-destructive mt-1">{errors.contratante_nome}</p>}
                 </div>
                 <div>
                   <Label>CPF / CNPJ</Label>

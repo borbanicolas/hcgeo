@@ -89,7 +89,16 @@ export function ObraDetalhe({ obra, onBack, onEdit }: ObraDetalheProps) {
     }
   };
 
-  const formatDate = (d?: string) => (d ? format(new Date(d + "T12:00:00"), "dd/MM/yyyy") : "—");
+  const formatDate = (d?: string) => {
+    if (!d) return "—";
+    try {
+      const date = new Date(d.includes("T") ? d : d + "T12:00:00");
+      if (isNaN(date.getTime())) return "—";
+      return format(date, "dd/MM/yyyy");
+    } catch (e) {
+      return "—";
+    }
+  };
 
   // Calculate totals
   const totalQtd = medicoes.reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);

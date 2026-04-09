@@ -8,43 +8,67 @@ import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
 
 export default function Auth() {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAuth = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (loading) return false;
     setLoading(true);
+
+    const endpoint = isSignUp ? "/auth/register" : "/auth/signin";
+    const actionName = isSignUp ? "Registro" : "Login";
+
     try {
-      const res = await fetch(`${API_URL}/auth/signin`, {
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
       
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        data = { error: "Servidor não retornou um JSON válido." };
+      }
       
       if (!res.ok) {
-        throw new Error(data.error || "Falha na autenticação");
+        throw new Error(data.error || `Falha no ${actionName}`);
       }
       
       if (data.session && data.session.access_token) {
         localStorage.setItem("hcgeotoken", data.session.access_token);
         localStorage.setItem("hcgeouser", JSON.stringify(data.user));
-        window.location.href = "/"; // Força recarregamento para entrar na aplicação
+        window.location.href = "/"; 
       }
 
     } catch (err: any) {
-      toast({
-        title: "Erro de Login",
-        description: err.message || "Credenciais inválidas ou erro no servidor.",
-        variant: "destructive",
-      });
+      const msg = err.message || "Erro desconhecido";
+      console.error(`[AUTH] ${actionName} falhou:`, msg);
+      
+      try {
+        toast({
+          title: `Erro de ${actionName}`,
+          description: msg,
+          variant: "destructive",
+        });
+      } catch (toastErr) {
+        alert(`Erro de ${actionName}: ` + msg);
+      }
     } finally {
       setLoading(false);
     }
+    
+    return false;
   };
 
   return (
@@ -61,11 +85,11 @@ export default function Auth() {
           </div>
           <h1 className="text-2xl font-bold text-foreground tracking-tight">GeoManager</h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Acesse sua conta para gerenciar leads e obras
+            {isSignUp ? "Crie sua conta para começar" : "Acesse sua conta para gerenciar leads e obras"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-5" onKeyDown={(e) => { if (e.key === 'Enter') handleAuth(e as any); }}>
           <div className="space-y-2">
             <Label htmlFor="email">Email Corporativo</Label>
             <div className="relative">
@@ -109,13 +133,27 @@ export default function Auth() {
           </div>
 
           <Button
-            type="submit"
+            type="button"
+            onClick={() => handleAuth()}
             disabled={loading}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 text-sm font-semibold transition-all active:scale-[0.98]"
           >
-            {loading ? "Autenticando..." : "Entrar no Sistema"}
+            {loading 
+              ? (isSignUp ? "Registrando..." : "Autenticando...") 
+              : (isSignUp ? "Criar Minha Conta" : "Entrar no Sistema")
+            }
           </Button>
-        </form>
+
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-primary hover:underline font-medium"
+            >
+              {isSignUp ? "Já tem uma conta? Entre" : "Ainda não tem conta? Registre-se"}
+            </button>
+          </div>
+        </div>
       </motion.div>
     </div>
   );

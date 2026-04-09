@@ -104,7 +104,7 @@ export function ImportPropostaDialog({ open, onOpenChange, onSaved }: Props) {
                 <div>
                   <Label className="text-xs">Nº da Proposta *</Label>
                   <Input value={item.numero} onChange={(e) => update(idx, "numero", e.target.value)}
-                    placeholder="Ex: PTC_HC_Nº15_2025_03" className="text-sm" />
+                    placeholder="Ex: HC_PTC_Nº15_2025_03" className="text-sm" />
                 </div>
                 <div className="sm:col-span-2">
                   <Label className="text-xs">Título *</Label>

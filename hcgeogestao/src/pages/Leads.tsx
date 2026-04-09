@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Plus, Search, Phone, Mail, Building2, Pencil, Trash2, LayoutGrid, List, Globe } from "lucide-react";
+import { Plus, Search, Phone, Mail, Building2, Pencil, Trash2, LayoutGrid, List, Globe, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { LeadKanban } from "@/components/leads/LeadKanban";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
 import { LeadSearchDialog } from "@/components/leads/LeadSearchDialog";
+import { LeadCnaeSearchDialog } from "@/components/leads/LeadCnaeSearchDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -42,6 +43,7 @@ const Leads = () => {
   const [loadingData, setLoadingData] = useState(true);
   const [viewMode, setViewMode] = useState<"list" | "kanban">("kanban");
   const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+  const [cnaeSearchOpen, setCnaeSearchOpen] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     setLoadingData(true);
@@ -129,19 +131,28 @@ const Leads = () => {
               <List className="h-4 w-4" />
             </button>
           </div>
-          <Button 
-            variant="outline"
-            className="gap-2 border-accent text-accent hover:bg-accent/10" 
-            onClick={() => setSearchDialogOpen(true)}
-          >
-            <Globe className="h-4 w-4" />
-            Search Engine
-          </Button>
+            <Button 
+                variant="outline"
+                className="gap-2 border-primary text-primary hover:bg-primary/10" 
+                onClick={() => setCnaeSearchOpen(true)}
+              >
+                <Hash className="h-4 w-4" />
+                CNAE Search
+              </Button>
 
-          <Button className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm" onClick={() => { setEditingLead(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4" />
-            Novo Lead
-          </Button>
+              <Button 
+                variant="outline"
+                className="gap-2 border-accent text-accent hover:bg-accent/10" 
+                onClick={() => setSearchDialogOpen(true)}
+              >
+                <Globe className="h-4 w-4" />
+                Search Engine
+              </Button>
+
+              <Button className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm" onClick={() => { setEditingLead(null); setDialogOpen(true); }}>
+                <Plus className="h-4 w-4" />
+                Novo Lead
+              </Button>
         </div>
       </div>
 
@@ -254,17 +265,31 @@ const Leads = () => {
 
       <LeadFormDialog open={dialogOpen} onOpenChange={setDialogOpen} lead={editingLead} onSaved={fetchLeads} />
 
-      <LeadSearchDialog open={searchDialogOpen} onOpenChange={setSearchDialogOpen} onImported={fetchLeads} />
+      <LeadSearchDialog 
+        open={searchDialogOpen} 
+        onOpenChange={setSearchDialogOpen} 
+        onImported={fetchLeads} 
+      />
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <LeadCnaeSearchDialog
+        open={cnaeSearchOpen}
+        onOpenChange={setCnaeSearchOpen}
+        onImported={fetchLeads}
+      />
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir lead?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogTitle>Excluir Lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O lead será removido permanentemente.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirmar Exclusão
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

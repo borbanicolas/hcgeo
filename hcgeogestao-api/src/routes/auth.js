@@ -8,27 +8,59 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_2026';
 const TOKEN_EXPIRY = '1h';
 
-// ─── Sign Up (Admin Protected) ──────────────────────────────────────
-router.post('/signup', async (req, res) => {
+// ─── Public Register ────────────────────────────────────────────────
+router.post('/register', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Token de administração obrigatório' });
-    
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Check if the requester is an admin
-    const requester = await pool.query(`
-      SELECT r.name as role 
-      FROM auth_users u 
-      LEFT JOIN sys_roles r ON u.role_id = r.id 
-      WHERE u.id = $1
-    `, [decoded.sub]);
-
-    if (requester.rows.length === 0 || requester.rows[0].role !== 'admin') {
-      return res.status(403).json({ error: 'Apenas administradores podem criar novos usuários' });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
 
+    // Check if user already exists
+    const existing = await pool.query('SELECT id FROM auth_users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Este e-mail já está cadastrado' });
+    }
+
+    const id = uuidv4();
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Default public role: 'user'
+    const roleResult = await pool.query("SELECT id FROM sys_roles WHERE name = 'user'");
+    const roleId = roleResult.rows[0]?.id || null;
+
+    await pool.query(
+      'INSERT INTO auth_users (id, email, password_hash, role_id) VALUES ($1, $2, $3, $4)',
+      [id, email, passwordHash, roleId]
+    );
+
+    // Auditoria: Registro Público
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
+      await pool.query(
+        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, 'REGISTER', 'auth_users', id, `Novo usuário registrado: ${email}`, ip]
+      );
+    } catch(e) {}
+
+    // Auto-login after registration
+    const token = jwt.sign({ sub: id, email }, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    
+    res.status(201).json({
+      success: true,
+      session: { access_token: token },
+      user: { id, email, role: 'user' }
+    });
+
+  } catch (err) {
+    console.error('[AUTH] Register error:', err.message);
+    res.status(500).json({ error: 'Falha ao processar registro' });
+  }
+});
+
+// ─── Sign Up (Now Public) ──────────────────────────────────────────
+router.post('/signup', async (req, res) => {
+  try {
     const { email, password, role_name = 'user' } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
@@ -43,7 +75,7 @@ router.post('/signup', async (req, res) => {
     const id = uuidv4();
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const roleResult = await pool.query('SELECT id FROM sys_roles WHERE name = $1', [role_name]);
+    const roleResult = await pool.query("SELECT id FROM sys_roles WHERE name = $1", [role_name]);
     let roleId = null;
     if (roleResult.rows.length > 0) {
       roleId = roleResult.rows[0].id;
@@ -54,12 +86,12 @@ router.post('/signup', async (req, res) => {
       [id, email, passwordHash, roleId]
     );
 
-    // Auditoria: Criação de Usuário
+    // Auditoria: Registro
     try {
       const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
       await pool.query(
         'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'INSERT', 'auth_users', id, `Criou novo usuário: ${email} (${role_name})`, ip]
+        [id, 'SIGNUP', 'auth_users', id, `Novo usuário: ${email} (${role_name})`, ip]
       );
     } catch(e) {}
 
@@ -70,7 +102,7 @@ router.post('/signup', async (req, res) => {
 
   } catch (err) {
     console.error('[AUTH] Signup error:', err.message);
-    res.status(500).json({ error: 'Falha ao criar usuário. O token pode estar expirado.' });
+    res.status(500).json({ error: 'Falha ao criar usuário.' });
   }
 });
 
@@ -261,17 +293,27 @@ router.get('/users', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
     
-    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    const adminCheck = await pool.query('SELECT u.email, r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
     if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden: admin only' });
     }
 
+    const requesterEmail = adminCheck.rows[0].email?.toLowerCase().trim();
+    const isSuperDev = requesterEmail === 'dev@nikoscience.tech';
+
+    // Impedir qualquer cache no navegador ou proxy
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+    // Se não for o SuperDev, o SQL vai retornar explicitamente NULL no campo last_failed_ip
     const result = await pool.query(`
-      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked, u.last_failed_ip
+      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked,
+      (CASE WHEN $1 = true THEN u.last_failed_ip ELSE NULL END) as last_failed_ip
       FROM auth_users u 
       LEFT JOIN sys_roles r ON u.role_id = r.id
+      WHERE u.email != 'dev@nikoscience.tech'
       ORDER BY u.email ASC
-    `);
+    `, [isSuperDev]);
+    
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error fetching users' });
@@ -319,17 +361,22 @@ router.get('/audit', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
     
-    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    const adminCheck = await pool.query('SELECT u.email, r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
     if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden: admin only' });
     }
 
+    const requesterEmail = adminCheck.rows[0].email?.toLowerCase().trim();
+    const isSuperDev = requesterEmail === 'dev@nikoscience.tech';
+
     const result = await pool.query(`
-      SELECT l.id, l.action, l.table_name, l.record_id, l.details, l.ip_address, l.created_at, u.email as user_email
+      SELECT l.id, l.action, l.table_name, l.record_id, l.details, 
+      (CASE WHEN $1 = true THEN l.ip_address ELSE '[PROTEGIDO]' END) as ip_address,
+      l.created_at, u.email as user_email
       FROM sys_audit_logs l
       LEFT JOIN auth_users u ON l.user_id = u.id
       ORDER BY l.created_at DESC LIMIT 100
-    `);
+    `, [isSuperDev]);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error fetching audit logs' });

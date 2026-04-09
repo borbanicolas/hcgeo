@@ -87,6 +87,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://hcgeo.nikoscience.tech}
       FINANCEIRO_VAULT_PASSWORD: ${FINANCEIRO_VAULT_PASSWORD}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      CNAE_API_TOKEN: ${CNAE_API_TOKEN}
     ports:
       - "${API_PORT:-4545}:3000"
     command: npm run dev

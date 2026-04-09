@@ -9,6 +9,7 @@ const crudRoutes = require('./routes/crud');
 const rpcRoutes = require('./routes/rpc');
 const uploadRoutes = require('./routes/upload');
 const searchRoutes = require('./routes/search');
+const externalRoutes = require('./routes/external');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,7 @@ app.get('/health', async (_req, res) => {
 // ─── Routes ─────────────────────────────────────────────────────────
 app.use('/auth', authRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/external', externalRoutes);
 app.use('/api', crudRoutes);
 app.use('/rpc', rpcRoutes);
 app.use('/upload', uploadRoutes);

@@ -75,7 +75,9 @@ export default function UsersAdmin() {
       if (!res.ok) throw new Error("Acesso negado");
       return res.json();
     },
-    enabled: userRole === 'admin'
+    enabled: userRole === 'admin',
+    staleTime: 0, // Garante que a lista seja sempre buscada do servidor
+    gcTime: 0    // Limpa a memória pra garantir que o IP não fique "preso"
   });
 
   const mutCreateUser = useMutation({
@@ -279,23 +281,25 @@ export default function UsersAdmin() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Globe className="h-4 w-4" /> IP de Origem
+            {lockoutUserInfo?.last_failed_ip && (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Globe className="h-4 w-4" /> Endereço de Origem
+                </div>
+                <span className="font-mono font-bold text-foreground">{lockoutUserInfo?.last_failed_ip}</span>
               </div>
-              <span className="font-mono font-bold text-foreground">{lockoutUserInfo?.last_failed_ip || "Não registrado"}</span>
-            </div>
+            )}
             
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <AlertTriangle className="h-4 w-4" /> Erros Seguidos
+                <AlertTriangle className="h-4 w-4" /> Histórico de Erros
               </div>
-              <span className="font-bold text-destructive">{lockoutUserInfo?.failed_attempts} de 5</span>
+              <span className="font-bold text-destructive">{lockoutUserInfo?.failed_attempts} tentativas seguidas</span>
             </div>
             
             <p className="text-[11px] text-muted-foreground text-center italic">
-              Este bloqueio ocorreu após o limite de segurança ser atingido. 
-              Verifique com o colaborador se as tentativas foram legítimas.
+              Este bloqueio ocorreu automaticamente após 5 erros de senha. 
+              {lockoutUserInfo?.last_failed_ip ? " O IP foi registrado para segurança." : ""}
             </p>
           </div>
 

@@ -74,7 +74,16 @@ export default function Obras() {
     return matchSearch && matchStatus;
   });
 
-  const formatDate = (d?: string) => (d ? format(new Date(d + "T12:00:00"), "dd/MM/yyyy") : "—");
+  const formatDate = (d?: string) => {
+    if (!d) return "—";
+    try {
+      const date = new Date(d.includes("T") ? d : d + "T12:00:00");
+      if (isNaN(date.getTime())) return "—";
+      return format(date, "dd/MM/yyyy");
+    } catch (e) {
+      return "—";
+    }
+  };
 
   const allStatuses = ["Todos", "Planejada", "Em Mobilização", "Em Andamento", "Pausada", "Concluída", "Cancelada"];
 
