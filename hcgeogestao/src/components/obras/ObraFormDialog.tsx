@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +66,31 @@ export function ObraFormDialog({ open, onOpenChange, obra, onSuccess }: ObraForm
   const [dataPrevisaoFim, setDataPrevisaoFim] = useState<Date | undefined>(obra?.data_previsao_fim ? new Date(obra.data_previsao_fim + "T12:00:00") : undefined);
   const [dataEntregaRelatorio, setDataEntregaRelatorio] = useState<Date | undefined>(obra?.data_entrega_relatorio ? new Date(obra.data_entrega_relatorio + "T12:00:00") : undefined);
   const [dataConclusao, setDataConclusao] = useState<Date | undefined>(obra?.data_conclusao ? new Date(obra.data_conclusao + "T12:00:00") : undefined);
+
+  // Sync form with prop when it changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      setForm({
+        titulo: obra?.titulo || "",
+        cliente_nome: obra?.cliente_nome || "",
+        local_obra: obra?.local_obra || "",
+        tipo_servico: obra?.tipo_servico || "",
+        status: obra?.status || "Planejada",
+        progresso: obra?.progresso || 0,
+        responsavel: obra?.responsavel || "",
+        equipe_campo: obra?.equipe_campo || "",
+        hotel: obra?.hotel || "",
+        alimentacao: obra?.alimentacao || "",
+        transporte: obra?.transporte || "",
+        observacoes_logistica: obra?.observacoes_logistica || "",
+        observacoes: obra?.observacoes || "",
+      });
+      setDataInicio(obra?.data_inicio ? new Date(obra.data_inicio + "T12:00:00") : undefined);
+      setDataPrevisaoFim(obra?.data_previsao_fim ? new Date(obra.data_previsao_fim + "T12:00:00") : undefined);
+      setDataEntregaRelatorio(obra?.data_entrega_relatorio ? new Date(obra.data_entrega_relatorio + "T12:00:00") : undefined);
+      setDataConclusao(obra?.data_conclusao ? new Date(obra.data_conclusao + "T12:00:00") : undefined);
+    }
+  }, [open, obra]);
 
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));

@@ -96,12 +96,6 @@ export default function Obras() {
           onBack={() => setSelectedObra(null)}
           onEdit={() => { setEditingObra(selectedObra); setDialogOpen(true); }}
         />
-        <ObraFormDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          obra={editingObra}
-          onSuccess={() => { fetchObras(); }}
-        />
       </>
     );
   }
@@ -229,7 +223,7 @@ export default function Obras() {
 
       <ObraFormDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingObra(null); }}
         obra={editingObra}
         onSuccess={fetchObras}
       />
