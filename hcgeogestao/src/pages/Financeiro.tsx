@@ -149,9 +149,52 @@ function GenericFormDialog({
   onSave: (data: Record<string, any>) => void; loading: boolean;
 }) {
   const [form, setForm] = useState<Record<string, any>>(initial);
-  const set = (k: string, v: any) => setForm((p) => ({ ...p, [k]: v }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { toast } = useToast();
 
-  useEffect(() => { if (open) setForm(initial); }, [open, initial]);
+  const set = (k: string, v: any) => {
+    setForm((p) => ({ ...p, [k]: v }));
+    if (errors[k]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[k];
+        return next;
+      });
+    }
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    fields.forEach(f => {
+      if (f.required) {
+        const val = form[f.name];
+        if (val === undefined || val === null || val === "" || (f.type === "number" && Number(val) === 0)) {
+          newErrors[f.name] = `${f.label} é obrigatório`;
+        }
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = () => {
+    if (!validate()) {
+      toast({ 
+        title: "Campos obrigatórios", 
+        description: "Por favor, preencha os campos marcados com (*)", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    onSave(form);
+  };
+
+  useEffect(() => { 
+    if (open) {
+      setForm(initial);
+      setErrors({});
+    }
+  }, [open, initial]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,16 +203,25 @@ function GenericFormDialog({
         <div className="grid gap-3 py-2">
           {fields.map((f) => (
             <div key={f.name} className="space-y-1">
-              <Label>{f.label}{f.required && " *"}</Label>
+              <Label className={errors[f.name] ? "text-destructive" : ""}>
+                {f.label}{f.required && " *"}
+              </Label>
               {f.type === "select" ? (
                 <Select value={form[f.name] || ""} onValueChange={(v) => set(f.name, v)}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectTrigger className={errors[f.name] ? "border-destructive ring-destructive" : ""}>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
                   <SelectContent>
                     {f.options?.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                   </SelectContent>
                 </Select>
               ) : f.type === "textarea" ? (
-                <Textarea value={form[f.name] || ""} onChange={(e) => set(f.name, e.target.value)} rows={2} />
+                <Textarea 
+                  value={form[f.name] || ""} 
+                  onChange={(e) => set(f.name, e.target.value)} 
+                  rows={2} 
+                  className={errors[f.name] ? "border-destructive ring-destructive" : ""}
+                />
               ) : f.type === "checkbox" ? (
                 <div className="flex items-center gap-2">
                   <input type="checkbox" checked={!!form[f.name]} onChange={(e) => set(f.name, e.target.checked)} className="h-4 w-4" />
@@ -177,17 +229,21 @@ function GenericFormDialog({
                 </div>
               ) : (
                 <Input
-                  type={f.type} value={form[f.name] ?? ""}
-                  onChange={(e) => set(f.name, f.type === "number" ? Number(e.target.value) : e.target.value)}
+                  type={f.type} 
+                  value={form[f.name] ?? ""}
+                  placeholder={f.required ? "Campo obrigatório" : ""}
+                  onChange={(e) => set(f.name, f.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
                   step={f.type === "number" ? "0.01" : undefined}
+                  className={errors[f.name] ? "border-destructive ring-destructive" : ""}
                 />
               )}
+              {errors[f.name] && <p className="text-[10px] text-destructive mt-0.5">{errors[f.name]}</p>}
             </div>
           ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={() => onSave(form)} disabled={loading}>Salvar</Button>
+          <Button onClick={handleSave} disabled={loading}>Salvar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

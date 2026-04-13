@@ -279,7 +279,7 @@ function ColaboradoresTab() {
 
       <ColaboradorFormDialog open={dialogOpen} onOpenChange={setDialogOpen} colaborador={editing} onSuccess={() => { fetchColaboradores(); fetchAlerts(); }} />
       {docsColab && <ColaboradorDocumentos open={docsOpen} onOpenChange={(o) => { setDocsOpen(o); if (!o) fetchAlerts(); }} colaborador={docsColab} />}
-      {pontoColab && <ColaboradorFolhaPonto open={pontoOpen} onOpenChange={setPontoOpen} colaborador={pontoColab} />}
+      {pontoColab && <ColaboradorFolhaPonto open={pontoOpen} onOpenChange={(o) => { setPontoOpen(o); if (!o) setPontoColab(null); }} colaborador={pontoColab} />}
     </div>
   );
 }

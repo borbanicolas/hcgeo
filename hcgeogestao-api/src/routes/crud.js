@@ -95,18 +95,51 @@ router.get('/:table', async (req, res) => {
     delete filters.offset;
     delete filters.select;
 
-    for (const [key, value] of Object.entries(filters)) {
-      params.push(value);
-      const connector = params.length === 1 && !hasUserId ? 'WHERE' : 'AND';
-      query += ` ${connector} ${table}.${key} = $${params.length}`;
+    for (let [key, rawValue] of Object.entries(filters)) {
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+
+      for (const val of values) {
+        let value = val;
+        let operator = '=';
+        
+        if (typeof val === 'string' && val.includes('.')) {
+          const parts = val.split('.');
+          const op = parts[0];
+          const actualVal = parts.slice(1).join('.');
+          
+          const ops = {
+            'eq': '=',
+            'neq': '!=',
+            'gt': '>',
+            'gte': '>=',
+            'lt': '<',
+            'lte': '<=',
+            'like': 'ILIKE'
+          };
+
+          if (ops[op]) {
+            operator = ops[op];
+            value = op === 'like' ? `%${actualVal}%` : actualVal;
+          } else if (op === 'in') {
+            const list = actualVal.replace(/[()]/g, '').split(',');
+            params.push(list);
+            const connector = params.length === 1 && !hasUserId ? 'WHERE' : 'AND';
+            query += ` ${connector} ${table}.${key} = ANY($${params.length})`;
+            continue;
+          }
+        }
+
+        params.push(value);
+        const connector = params.length === 1 && !hasUserId ? 'WHERE' : 'AND';
+        query += ` ${connector} ${table}.${key} ${operator} $${params.length}`;
+      }
     }
 
-    // Ordering
+    // Final query preparation
     const order = req.query.order || 'created_at.desc';
     const [orderCol, orderDir] = order.split('.');
     query += ` ORDER BY ${orderCol} ${orderDir === 'asc' ? 'ASC' : 'DESC'}`;
 
-    // Pagination
     if (req.query.limit) {
       params.push(parseInt(req.query.limit));
       query += ` LIMIT $${params.length}`;
@@ -116,7 +149,11 @@ router.get('/:table', async (req, res) => {
       query += ` OFFSET $${params.length}`;
     }
 
+    console.log(`[DEBUG BACKEND] 🛠️  SQL Gerada:`, query);
+    console.log(`[DEBUG BACKEND] 📦 Parâmetros SQL:`, params);
+
     const result = await pool.query(query, params);
+    console.log(`[DEBUG BACKEND] ✅ Resultados encontrados:`, result.rows.length);
     res.json(result.rows);
   } catch (err) {
     console.error(`[CRUD] GET /${table} error:`, err.message);

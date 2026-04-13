@@ -54,7 +54,7 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    data: new Date().toISOString().split("T")[0],
+    data: format(new Date(), "yyyy-MM-dd"),
     entrada: "07:00",
     saida_almoco: "12:00",
     retorno_almoco: "13:00",
@@ -63,21 +63,49 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
     observacoes: "",
   });
 
+  // Helper para evitar RangeError: Invalid time value
+  const safeFormat = (dateStr: string, formatStr: string) => {
+    try {
+      if (!dateStr) return "Data ausente";
+      // Remove fuso horário se vier do banco como ISO completa para evitar confusão com o T12:00:00
+      const cleanDate = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr;
+      const date = parseISO(cleanDate + "T12:00:00");
+      if (isNaN(date.getTime())) {
+        console.error(`[DEBUG FRONT] ❌ Data inválida detectada: "${dateStr}"`);
+        return "Data inválida";
+      }
+      return format(date, formatStr, { locale: ptBR });
+    } catch (e) {
+      console.error(`[DEBUG FRONT] 🔥 Erro ao formatar data "${dateStr}":`, e);
+      return "Erro na data";
+    }
+  };
+
   useEffect(() => {
     if (open && colaborador) fetchRegistros();
   }, [open, colaborador, mesRef]);
 
   const fetchRegistros = async () => {
-    const inicio = format(startOfMonth(mesRef), "yyyy-MM-dd");
-    const fim = format(endOfMonth(mesRef), "yyyy-MM-dd");
-    const { data } = await supabase
-      .from("ponto_registros")
-      .select("*")
-      .eq("colaborador_id", colaborador.id)
-      .gte("data", inicio)
-      .lte("data", fim)
-      .order("data");
-    setRegistros(data || []);
+    try {
+      const inicio = format(startOfMonth(mesRef), "yyyy-MM-dd");
+      const fim = format(endOfMonth(mesRef), "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("ponto_registros")
+        .select("*")
+        .eq("colaborador_id", colaborador.id)
+        .gte("data", inicio)
+        .lte("data", fim)
+        .order("data");
+      
+      if (error) {
+        console.error("Erro ao buscar registros:", error);
+        toast({ title: "Erro ao buscar registros", variant: "destructive" });
+        return;
+      }
+      setRegistros(data || []);
+    } catch (err) {
+      console.error("Falha ao buscar registros:", err);
+    }
   };
 
   const getUserId = async () => {
@@ -88,7 +116,7 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
   const openNew = (dateStr?: string) => {
     setEditingId(null);
     setForm({
-      data: dateStr || new Date().toISOString().split("T")[0],
+      data: dateStr || format(new Date(), "yyyy-MM-dd"),
       entrada: "07:00",
       saida_almoco: "12:00",
       retorno_almoco: "13:00",
@@ -127,6 +155,8 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
       colaborador_id: colaborador.id,
     };
 
+    console.log("[DEBUG FRONT] 💾 Salvando registro de ponto:", payload);
+
     let error;
     if (editingId) {
       ({ error } = await supabase.from("ponto_registros").update(payload).eq("id", editingId));
@@ -150,7 +180,10 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
   // Calendar days
   const diasDoMes = eachDayOfInterval({ start: startOfMonth(mesRef), end: endOfMonth(mesRef) });
 
-  const getRegistroDia = (dia: Date) => registros.find(r => isSameDay(parseISO(r.data), dia));
+  const getRegistroDia = (dia: Date) => {
+    const dateStr = format(dia, "yyyy-MM-dd");
+    return registros.find(r => r.data === dateStr);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,7 +269,7 @@ export function ColaboradorFolhaPonto({ open, onOpenChange, colaborador }: Props
                   <CardContent className="p-3 flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-wrap">
                       <span className="font-medium text-sm min-w-[80px]">
-                        {format(parseISO(r.data), "dd/MM (EEE)", { locale: ptBR })}
+                        {safeFormat(r.data, "dd/MM (EEE)")}
                       </span>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {r.entrada && <Badge variant="outline" className="text-[10px]">E: {r.entrada?.slice(0,5)}</Badge>}

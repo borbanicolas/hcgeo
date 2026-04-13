@@ -20,7 +20,7 @@ export default function Auth() {
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     if (loading) return false;
     setLoading(true);
 
@@ -33,28 +33,28 @@ export default function Auth() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-      
+
       let data;
       try {
         data = await res.json();
       } catch (jsonErr) {
         data = { error: "Servidor não retornou um JSON válido." };
       }
-      
+
       if (!res.ok) {
         throw new Error(data.error || `Falha no ${actionName}`);
       }
-      
+
       if (data.session && data.session.access_token) {
         localStorage.setItem("hcgeotoken", data.session.access_token);
         localStorage.setItem("hcgeouser", JSON.stringify(data.user));
-        window.location.href = "/"; 
+        window.location.href = "/";
       }
 
     } catch (err: any) {
       const msg = err.message || "Erro desconhecido";
       console.error(`[AUTH] ${actionName} falhou:`, msg);
-      
+
       try {
         toast({
           title: `Erro de ${actionName}`,
@@ -67,7 +67,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-    
+
     return false;
   };
 
@@ -138,8 +138,8 @@ export default function Auth() {
             disabled={loading}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 text-sm font-semibold transition-all active:scale-[0.98]"
           >
-            {loading 
-              ? (isSignUp ? "Registrando..." : "Autenticando...") 
+            {loading
+              ? (isSignUp ? "Registrando..." : "Autenticando...")
               : (isSignUp ? "Criar Minha Conta" : "Entrar no Sistema")
             }
           </Button>
@@ -150,7 +150,7 @@ export default function Auth() {
               onClick={() => setIsSignUp(!isSignUp)}
               className="text-sm text-primary hover:underline font-medium"
             >
-              {isSignUp ? "Já tem uma conta? Entre" : "Ainda não tem conta? Registre-se"}
+
             </button>
           </div>
         </div>
