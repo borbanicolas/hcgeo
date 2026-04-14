@@ -122,7 +122,8 @@ export function DocumentosEmpresa() {
         return;
       }
       
-      const publicUrl = uploadData?.url || supabase.storage.from("empresa-docs").getPublicUrl(path).data.publicUrl;
+      const { data: publicData } = supabase.storage.from("empresa-docs").getPublicUrl(uploadData.path);
+      const publicUrl = publicData.publicUrl;
       arquivoUrl = publicUrl;
       arquivoNome = arquivo.name;
       setUploading(false);

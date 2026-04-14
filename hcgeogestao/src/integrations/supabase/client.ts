@@ -173,19 +173,22 @@ export const supabase = {
           });
           if (!res.ok) throw new Error("Falha no upload");
           const data = await res.json();
-          // Importante: Garantir que a URL seja absoluta para não quebrar no frontend
-          if (data.url && !data.url.startsWith('http')) {
-            data.url = `${API_URL}${data.url}`;
-          }
-          return { data, error: null };
+          // Importante: O mock do Supabase geralmente retorna { path: '...' }
+          // Nosso backend retorna 'url', vamos mapear para facilitar o uso uniforme
+          return { data: { ...data, path: data.url }, error: null };
         } catch (e: any) {
           return { data: null, error: e };
         }
       },
       getPublicUrl: (path: string) => {
-        // Here path is not really used because our simple upload returns the full URL
-        // but for compatibility with existing code that might use the result of upload
-        return { data: { publicUrl: path } };
+        // Garantir que a URL seja absoluta usando a API_URL configurada
+        let publicUrl = path;
+        if (path && !path.startsWith('http')) {
+          // Remove barra inicial se houver para evitar barra dupla
+          const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+          publicUrl = `${API_URL}/${cleanPath}`;
+        }
+        return { data: { publicUrl } };
       },
       remove: async (paths: string[]) => {
         // Implement removal if needed, for now just mock success

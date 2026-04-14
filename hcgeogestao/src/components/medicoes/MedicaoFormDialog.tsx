@@ -108,7 +108,8 @@ export function MedicaoFormDialog({ open, onOpenChange, medicao, onSuccess, defa
 
       // Se a API retornou a URL diretamente (comportamento do nosso Mock) usar ela,
       // senão buscar via getPublicUrl (comportamento padrão Supabase)
-      const publicUrl = uploadData?.url || supabase.storage.from("medicao-fotos").getPublicUrl(filePath).data.publicUrl;
+      const { data: publicData } = supabase.storage.from("medicao-fotos").getPublicUrl(uploadData.path);
+      const publicUrl = publicData.publicUrl;
 
       await supabase.from("medicao_fotos").insert({
         medicao_id: medicaoId,

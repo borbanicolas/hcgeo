@@ -299,7 +299,8 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
       const { data: uploadData, error } = await supabase.storage.from("proposta-docs").upload(path, file);
       if (error) throw error;
       
-      const publicUrl = uploadData?.url || supabase.storage.from("proposta-docs").getPublicUrl(path).data.publicUrl;
+      const { data: publicData } = supabase.storage.from("proposta-docs").getPublicUrl(uploadData.path);
+      const publicUrl = publicData.publicUrl;
       setArquivoUrl(publicUrl);
       setArquivoNome(file.name);
       toast.success("Arquivo anexado!");

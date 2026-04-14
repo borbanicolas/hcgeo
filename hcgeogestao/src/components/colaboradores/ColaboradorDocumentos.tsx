@@ -61,7 +61,8 @@ function InlineFileAttach({ record, table, onRefresh }: { record: any; table: st
     const { data: uploadData, error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
     if (uploadError) { toast({ title: "Erro no upload", variant: "destructive" }); setUploading(false); return; }
     
-    const publicUrl = uploadData?.url || supabase.storage.from("colaborador-docs").getPublicUrl(filePath).data.publicUrl;
+    const { data: publicData } = supabase.storage.from("colaborador-docs").getPublicUrl(uploadData.path);
+    const publicUrl = publicData.publicUrl;
     
     await (supabase.from(table as any) as any).update({ arquivo_url: publicUrl, arquivo_nome: file.name }).eq("id", record.id);
     toast({ title: "Arquivo anexado" });
@@ -209,7 +210,8 @@ export function ColaboradorDocumentos({ open, onOpenChange, colaborador }: Props
     const { data: uploadData, error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
     if (uploadError) { toast({ title: "Erro no upload", variant: "destructive" }); setUploading(false); return; }
     
-    const publicUrl = uploadData?.url || supabase.storage.from("colaborador-docs").getPublicUrl(filePath).data.publicUrl;
+    const { data: publicData } = supabase.storage.from("colaborador-docs").getPublicUrl(uploadData.path);
+    const publicUrl = publicData.publicUrl;
     
     const { error } = await (supabase.from("colaborador_arquivos" as any) as any).insert({
       colaborador_id: colaborador.id, user_id: uid,
