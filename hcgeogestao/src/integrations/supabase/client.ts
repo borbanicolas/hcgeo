@@ -16,7 +16,7 @@ class MockQueryBuilder {
 
   select(query?: string) {
     if (query) this.url.searchParams.set('select', query);
-    console.log(`[DEBUG FRONT] 🔍 selecione("${query || '*'}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 🔍 selecione("${query || '*'}")`);
     return this;
   }
 
@@ -39,56 +39,56 @@ class MockQueryBuilder {
   
   eq(col: string, val: any) {
     this.url.searchParams.append(col, String(val));
-    console.log(`[DEBUG FRONT] 🎯 eq("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 🎯 eq("${col}", "${val}")`);
     return this;
   }
   
   neq(col: string, val: any) {
     this.url.searchParams.append(col, `neq.${val}`);
-    console.log(`[DEBUG FRONT] 🎯 neq("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 🎯 neq("${col}", "${val}")`);
     return this;
   }
   
   gte(col: string, val: any) {
     this.url.searchParams.append(col, `gte.${val}`);
-    console.log(`[DEBUG FRONT] 📈 gte("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 📈 gte("${col}", "${val}")`);
     return this;
   }
   
   lte(col: string, val: any) {
     this.url.searchParams.append(col, `lte.${val}`);
-    console.log(`[DEBUG FRONT] 📉 lte("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 📉 lte("${col}", "${val}")`);
     return this;
   }
   
   gt(col: string, val: any) {
     this.url.searchParams.append(col, `gt.${val}`);
-    console.log(`[DEBUG FRONT] 📈 gt("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 📈 gt("${col}", "${val}")`);
     return this;
   }
   
   lt(col: string, val: any) {
     this.url.searchParams.append(col, `lt.${val}`);
-    console.log(`[DEBUG FRONT] 📉 lt("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 📉 lt("${col}", "${val}")`);
     return this;
   }
   
   like(col: string, val: any) {
     this.url.searchParams.append(col, `like.${val}`);
-    console.log(`[DEBUG FRONT] 🔎 like("${col}", "${val}")`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 🔎 like("${col}", "${val}")`);
     return this;
   }
   
   in(col: string, vals: any[]) {
     this.url.searchParams.append(col, `in.(${vals.join(",")})`);
-    console.log(`[DEBUG FRONT] 📥 in("${col}", [${vals.length} itens])`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] 📥 in("${col}", [${vals.length} itens])`);
     return this;
   }
 
   order(col: string, opts?: { ascending?: boolean }) {
     const isAsc = opts?.ascending !== false;
     this.url.searchParams.set('order', `${col}.${isAsc ? 'asc' : 'desc'}`);
-    console.log(`[DEBUG FRONT] ↕️ order("${col}", ${isAsc ? 'ASC' : 'DESC'})`);
+    if (this.table === 'medicoes') console.log(`[DEBUG FRONT] ↕️ order("${col}", ${isAsc ? 'ASC' : 'DESC'})`);
     return this;
   }
 
@@ -98,8 +98,11 @@ class MockQueryBuilder {
   }
 
   async execute() {
-    console.log(`[DEBUG FRONT] 🚀 Executando query para tabela: ${this.table}`);
-    console.log(`[DEBUG FRONT] 🔗 URL Completa:`, this.url.toString());
+    const isMedicao = this.table === 'medicoes';
+    if (isMedicao) {
+      console.log(`[DEBUG FRONT] 🚀 Executando query para tabela: ${this.table}`);
+      console.log(`[DEBUG FRONT] 🔗 URL Completa:`, this.url.toString());
+    }
     
     try {
       if (this.method === 'PATCH' || this.method === 'DELETE') {
@@ -121,12 +124,14 @@ class MockQueryBuilder {
 
       if (!res.ok) {
         const error = await res.json();
-        console.error(`[DEBUG FRONT] ❌ Erro na API:`, error);
+        if (isMedicao) console.error(`[DEBUG FRONT] ❌ Erro na API:`, error);
         return { data: null, error: new Error(error.error || "API Error") };
       }
       
       let data = await res.json();
-      console.log(`[DEBUG FRONT] ✨ Dados recebidos:`, Array.isArray(data) ? `${data.length} registros` : 'objeto único');
+      if (isMedicao) {
+        console.log(`[DEBUG FRONT] ✨ Dados recebidos:`, Array.isArray(data) ? `${data.length} registros` : 'objeto único');
+      }
       
       if (this.singleResult && Array.isArray(data)) {
          data = data[0] || null;
@@ -134,7 +139,7 @@ class MockQueryBuilder {
       
       return { data, error: null };
     } catch (e: any) {
-      console.error(`[DEBUG FRONT] 🔥 Erro fatal no fetch:`, e);
+      if (isMedicao) console.error(`[DEBUG FRONT] 🔥 Erro fatal no fetch:`, e);
       return { data: null, error: e };
     }
   }
@@ -152,6 +157,41 @@ export const supabase = {
       const u = localStorage.getItem("hcgeouser");
       return { data: { user: u ? JSON.parse(u) : null }, error: null };
     }
+  },
+  storage: {
+    from: (bucket: string) => ({
+      upload: async (path: string, file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await fetch(`${API_URL}/upload`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${getToken()}`,
+            },
+            body: formData,
+          });
+          if (!res.ok) throw new Error("Falha no upload");
+          const data = await res.json();
+          // Importante: Garantir que a URL seja absoluta para não quebrar no frontend
+          if (data.url && !data.url.startsWith('http')) {
+            data.url = `${API_URL}${data.url}`;
+          }
+          return { data, error: null };
+        } catch (e: any) {
+          return { data: null, error: e };
+        }
+      },
+      getPublicUrl: (path: string) => {
+        // Here path is not really used because our simple upload returns the full URL
+        // but for compatibility with existing code that might use the result of upload
+        return { data: { publicUrl: path } };
+      },
+      remove: async (paths: string[]) => {
+        // Implement removal if needed, for now just mock success
+        return { data: null, error: null };
+      }
+    })
   },
   rpc: async (func: string, args: any) => {
     try {

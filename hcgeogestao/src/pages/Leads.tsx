@@ -48,21 +48,12 @@ const Leads = () => {
   const fetchLeads = useCallback(async () => {
     setLoadingData(true);
     try {
-      console.log("[DEBUG FRONTEND] 🔍 Iniciando o carregamento dos Leads...");
       const token = localStorage.getItem("hcgeotoken");
-      
-      console.log(`[DEBUG FRONTEND] 🌐 Disparando fetch para: ${API_URL}/api/leads`);
-      
       const res = await fetch(`${API_URL}/api/leads`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log(`[DEBUG FRONTEND] 📥 Resposta bruta da API:`, res.status, res.statusText);
-      
-      if (!res.ok) throw new Error("Erro na API");
-      
       const data = await res.json();
-      console.log(`[DEBUG FRONTEND] ✅ Dados parseados recebidos (${data.length} leads)`);
       setLeads(data || []);
     } catch (error) {
       toast.error("Erro ao carregar leads");

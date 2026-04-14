@@ -100,18 +100,20 @@ export function MedicaoFormDialog({ open, onOpenChange, medicao, onSuccess, defa
       const ext = file.name.split(".").pop();
       const filePath = `${userId}/${medicaoId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage.from("medicao-fotos").upload(filePath, file);
+      const { data: uploadData, error: uploadError } = await supabase.storage.from("medicao-fotos").upload(filePath, file);
       if (uploadError) {
         console.error("Upload error:", uploadError);
         continue;
       }
 
-      const { data: urlData } = supabase.storage.from("medicao-fotos").getPublicUrl(filePath);
+      // Se a API retornou a URL diretamente (comportamento do nosso Mock) usar ela,
+      // senão buscar via getPublicUrl (comportamento padrão Supabase)
+      const publicUrl = uploadData?.url || supabase.storage.from("medicao-fotos").getPublicUrl(filePath).data.publicUrl;
 
       await supabase.from("medicao_fotos").insert({
         medicao_id: medicaoId,
         user_id: userId,
-        url: urlData.publicUrl,
+        url: publicUrl,
         nome_arquivo: file.name,
       });
     }

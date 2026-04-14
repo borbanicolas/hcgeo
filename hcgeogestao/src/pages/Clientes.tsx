@@ -29,7 +29,6 @@ const Clientes = () => {
   const fetchClientes = useCallback(async () => {
     setLoadingData(true);
     try {
-      console.log("[DEBUG FRONTEND] 🔍 Carregando Clientes...");
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/clientes`, {
         headers: { Authorization: `Bearer ${token}` }
