@@ -29,7 +29,11 @@ export function DRETab({ contasPagar, contasReceber, despesasFixas, mesAtual }: 
   const mesStart = startOfMonth(parseISO(mesAtual + "-01"));
   const mesEnd = endOfMonth(mesStart);
   const inMonth = (d: string) => {
-    try { return isWithinInterval(parseISO(d), { start: mesStart, end: mesEnd }); }
+    try { 
+      if (!d) return false;
+      const datePart = d.includes("T") ? d.split("T")[0] : d;
+      return isWithinInterval(parseISO(datePart), { start: mesStart, end: mesEnd }); 
+    }
     catch { return false; }
   };
 
@@ -96,7 +100,11 @@ export function DRETab({ contasPagar, contasReceber, despesasFixas, mesAtual }: 
       const mStart = startOfMonth(d);
       const mEnd = endOfMonth(d);
       const inM = (dt: string) => {
-        try { return isWithinInterval(parseISO(dt), { start: mStart, end: mEnd }); }
+        try { 
+          if (!dt) return false;
+          const datePart = dt.includes("T") ? dt.split("T")[0] : dt;
+          return isWithinInterval(parseISO(datePart), { start: mStart, end: mEnd }); 
+        }
         catch { return false; }
       };
 
@@ -129,7 +137,11 @@ export function DRETab({ contasPagar, contasReceber, despesasFixas, mesAtual }: 
   const mesAnteriorStart = startOfMonth(subMonths(mesStart, 1));
   const mesAnteriorEnd = endOfMonth(mesAnteriorStart);
   const inMesAnterior = (d: string) => {
-    try { return isWithinInterval(parseISO(d), { start: mesAnteriorStart, end: mesAnteriorEnd }); }
+    try { 
+      if (!d) return false;
+      const datePart = d.includes("T") ? d.split("T")[0] : d;
+      return isWithinInterval(parseISO(datePart), { start: mesAnteriorStart, end: mesAnteriorEnd }); 
+    }
     catch { return false; }
   };
   const receitasAnt = contasReceber.filter((c: any) => c.status === "Recebido" && inMesAnterior(c.data_recebimento || c.data_vencimento)).reduce((s: number, c: any) => s + Number(c.valor_recebido), 0);

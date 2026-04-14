@@ -33,7 +33,8 @@ export function ColaboradorFormDialog({ open, onOpenChange, colaborador, onSucce
       setForm(colaborador ? {
         nome: colaborador.nome || "", cpf: colaborador.cpf || "", rg: colaborador.rg || "",
         cargo: colaborador.cargo || "", funcao: colaborador.funcao || "",
-        data_admissao: colaborador.data_admissao || "", data_nascimento: colaborador.data_nascimento || "",
+        data_admissao: (colaborador.data_admissao || "").split("T")[0], 
+        data_nascimento: (colaborador.data_nascimento || "").split("T")[0],
         telefone: colaborador.telefone || "", email: colaborador.email || "",
         endereco: colaborador.endereco || "", cidade_uf: colaborador.cidade_uf || "",
         contato_emergencia: colaborador.contato_emergencia || "",

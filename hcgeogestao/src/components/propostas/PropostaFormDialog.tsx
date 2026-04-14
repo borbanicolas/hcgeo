@@ -224,7 +224,7 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
         titulo: proposta.titulo || "", cliente_id: proposta.cliente_id || "",
         contratante_nome: proposta.contratante_nome || "", cnpj_cpf: proposta.cnpj_cpf || "",
         tipo_servico: proposta.tipo_servico || "Sondagem SPT", status: proposta.status || "Rascunho",
-        data_emissao: proposta.data_emissao || new Date().toISOString().split("T")[0],
+        data_emissao: (proposta.data_emissao || "").split("T")[0] || new Date().toISOString().split("T")[0],
         validade_dias: proposta.validade_dias ?? 15, condicoes_pagamento: proposta.condicoes_pagamento || "",
         prazo_execucao: proposta.prazo_execucao || "", local_obra: proposta.local_obra || "",
         observacoes: proposta.observacoes || "", desconto_percentual: proposta.desconto_percentual ?? 0,
@@ -232,9 +232,9 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
         contato_nome: proposta.contato_nome || "", contato_telefone: proposta.contato_telefone || "",
         contato_email: proposta.contato_email || "",
         forma_pagamento: proposta.forma_pagamento || "",
-        prazo_inicio: proposta.prazo_inicio || "",
-        prazo_execucao_campo: proposta.prazo_execucao_campo || "",
-        prazo_entrega_relatorio: proposta.prazo_entrega_relatorio || "",
+        prazo_inicio: (proposta.prazo_inicio || "").split("T")[0] || "",
+        prazo_execucao_campo: (proposta.prazo_execucao_campo || "").split("T")[0] || "",
+        prazo_entrega_relatorio: (proposta.prazo_entrega_relatorio || "").split("T")[0] || "",
         encargos_contratante: proposta.encargos_contratante || DEFAULT_ENCARGOS_CONTRATANTE,
         encargos_contratada: proposta.encargos_contratada || DEFAULT_ENCARGOS_CONTRATADA,
         condicoes_gerais: proposta.condicoes_gerais || DEFAULT_CONDICOES_GERAIS,
@@ -296,10 +296,11 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
       const path = `${user.id}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage.from("proposta-docs").upload(path, file);
+      const { data: uploadData, error } = await supabase.storage.from("proposta-docs").upload(path, file);
       if (error) throw error;
-      const { data: urlData } = supabase.storage.from("proposta-docs").getPublicUrl(path);
-      setArquivoUrl(urlData.publicUrl);
+      
+      const publicUrl = uploadData?.url || supabase.storage.from("proposta-docs").getPublicUrl(path).data.publicUrl;
+      setArquivoUrl(publicUrl);
       setArquivoNome(file.name);
       toast.success("Arquivo anexado!");
     } catch (err: any) {
@@ -410,11 +411,16 @@ export function PropostaFormDialog({ open, onOpenChange, proposta, onSaved }: Pr
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
-      const payload = {
+      const payload: any = {
         ...form, cliente_id: form.cliente_id || null,
         valor_total: total, user_id: user.id,
         arquivo_url: arquivoUrl, arquivo_nome: arquivoNome,
       };
+
+      // Sanitizar: strings vazias devem ser null para não quebrar o banco
+      Object.keys(payload).forEach(k => {
+        if (payload[k] === "") payload[k] = null;
+      });
 
       let propostaId = proposta?.id;
 

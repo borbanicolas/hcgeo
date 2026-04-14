@@ -87,14 +87,33 @@ export function DespesasTab({ contasPagar, despesasFixas, userId, mesAtual }: De
 
   useEffect(() => {
     if (dialogOpen) {
-      setForm(editItem ? { ...defaultForm, ...editItem, parcela_atual: editItem.parcela_atual || "", total_parcelas: editItem.total_parcelas || "", recorrencia: editItem.recorrencia || "" } : defaultForm);
+      if (editItem) {
+        const sanitized = { ...editItem };
+        if (sanitized.data_vencimento) sanitized.data_vencimento = sanitized.data_vencimento.split("T")[0];
+        if (sanitized.data_pagamento) sanitized.data_pagamento = sanitized.data_pagamento.split("T")[0];
+        setForm({ 
+          ...defaultForm, 
+          ...sanitized, 
+          parcela_atual: editItem.parcela_atual || "", 
+          total_parcelas: editItem.total_parcelas || "", 
+          recorrencia: editItem.recorrencia || "" 
+        });
+      } else {
+        setForm(defaultForm);
+      }
     }
   }, [dialogOpen, editItem]);
 
   // Computed status (overdue check)
   const getStatus = (item: any) => {
     if (item.status === "Pago" || item.status === "Cancelado") return item.status;
-    if (item.status === "Pendente" && new Date(item.data_vencimento) < new Date()) return "Atrasado";
+    if (item.status === "Pendente" && item.data_vencimento) {
+      const datePart = item.data_vencimento.split("T")[0];
+      const expiry = parseISO(datePart);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (expiry < today) return "Atrasado";
+    }
     return item.status;
   };
 
@@ -214,11 +233,16 @@ export function DespesasTab({ contasPagar, despesasFixas, userId, mesAtual }: De
           valor_pago: Number(data.valor_pago) || 0,
           data_pagamento: data.data_pagamento || null,
           recorrente: data.tipo_despesa === "Fixa",
-          observacoes: data.observacoes || "",
-          tipo_despesa: data.tipo_despesa || "Variável",
           recorrencia: data.recorrencia || null,
+          tipo_despesa: data.tipo_despesa || "Variável",
           centro_custo: data.centro_custo || "",
         };
+
+        // Sanitizar strings vazias para null
+        Object.keys(payload).forEach(key => {
+          if (payload[key] === "") payload[key] = null;
+        });
+
         if (editItem?.id) {
           const { error } = await supabase.from("contas_pagar").update(payload).eq("id", editItem.id);
           if (error) throw error;
@@ -265,7 +289,8 @@ export function DespesasTab({ contasPagar, despesasFixas, userId, mesAtual }: De
   const duplicarMut = useMutation({
     mutationFn: async (item: any) => {
       const { id, created_at, updated_at, ...rest } = item;
-      const newDate = new Date(item.data_vencimento);
+      const datePart = item.data_vencimento.split("T")[0];
+      const newDate = parseISO(datePart);
       newDate.setMonth(newDate.getMonth() + 1);
       const { error } = await supabase.from("contas_pagar").insert({
         ...rest,
@@ -414,7 +439,7 @@ export function DespesasTab({ contasPagar, despesasFixas, userId, mesAtual }: De
                     <TableCell><Badge variant="outline">{d.categoria}</Badge></TableCell>
                     <TableCell className="text-sm">{d.fornecedor}</TableCell>
                     <TableCell className="text-right font-mono">{BRL(Number(d.valor))}</TableCell>
-                    <TableCell className="text-sm">{format(parseISO(d.data_vencimento), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-sm">{d.data_vencimento ? format(parseISO(d.data_vencimento.split("T")[0]), "dd/MM/yyyy") : "—"}</TableCell>
                     <TableCell className="text-sm">{d.forma_pagamento}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[d._status] || ""}`}>

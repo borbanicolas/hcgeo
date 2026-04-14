@@ -58,10 +58,12 @@ function InlineFileAttach({ record, table, onRefresh }: { record: any; table: st
     setUploading(true);
     const ext = file.name.split(".").pop();
     const filePath = `${user.id}/${record.colaborador_id}/${table}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
+    const { data: uploadData, error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
     if (uploadError) { toast({ title: "Erro no upload", variant: "destructive" }); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("colaborador-docs").getPublicUrl(filePath);
-    await (supabase.from(table as any) as any).update({ arquivo_url: urlData.publicUrl, arquivo_nome: file.name }).eq("id", record.id);
+    
+    const publicUrl = uploadData?.url || supabase.storage.from("colaborador-docs").getPublicUrl(filePath).data.publicUrl;
+    
+    await (supabase.from(table as any) as any).update({ arquivo_url: publicUrl, arquivo_nome: file.name }).eq("id", record.id);
     toast({ title: "Arquivo anexado" });
     setUploading(false);
     onRefresh();
@@ -204,12 +206,14 @@ export function ColaboradorDocumentos({ open, onOpenChange, colaborador }: Props
     setUploading(true);
     const ext = file.name.split(".").pop();
     const filePath = `${uid}/${colaborador.id}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
+    const { data: uploadData, error: uploadError } = await supabase.storage.from("colaborador-docs").upload(filePath, file);
     if (uploadError) { toast({ title: "Erro no upload", variant: "destructive" }); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("colaborador-docs").getPublicUrl(filePath);
+    
+    const publicUrl = uploadData?.url || supabase.storage.from("colaborador-docs").getPublicUrl(filePath).data.publicUrl;
+    
     const { error } = await (supabase.from("colaborador_arquivos" as any) as any).insert({
       colaborador_id: colaborador.id, user_id: uid,
-      categoria: arquivoCategoria, nome_arquivo: file.name, url: urlData.publicUrl,
+      categoria: arquivoCategoria, nome_arquivo: file.name, url: publicUrl,
     });
     if (error) toast({ title: "Erro ao salvar arquivo", variant: "destructive" });
     else { toast({ title: "Arquivo enviado" }); fetchAll(); }

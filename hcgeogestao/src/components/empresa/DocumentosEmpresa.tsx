@@ -115,14 +115,15 @@ export function DocumentosEmpresa() {
       setUploading(true);
       const ext = arquivo.name.split(".").pop();
       const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("empresa-docs").upload(path, arquivo);
+      const { data: uploadData, error: upErr } = await supabase.storage.from("empresa-docs").upload(path, arquivo);
       if (upErr) {
         toast({ title: "Erro no upload", description: upErr.message, variant: "destructive" });
         setUploading(false);
         return;
       }
-      const { data: urlData } = supabase.storage.from("empresa-docs").getPublicUrl(path);
-      arquivoUrl = urlData.publicUrl;
+      
+      const publicUrl = uploadData?.url || supabase.storage.from("empresa-docs").getPublicUrl(path).data.publicUrl;
+      arquivoUrl = publicUrl;
       arquivoNome = arquivo.name;
       setUploading(false);
     }

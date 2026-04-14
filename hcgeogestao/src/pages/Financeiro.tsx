@@ -141,6 +141,12 @@ interface FormField {
   options?: string[]; required?: boolean;
 }
 
+const DESPESAS_FIXAS_CATEGORIAS = ["Aluguel", "Salários", "Energia", "Internet", "Telefone", "Água", "Contabilidade", "Software", "Seguros", "Impostos", "Marketing", "Operacional", "Outros"];
+
+const defaultPagar = { descricao: "", categoria: "Outros", fornecedor: "", valor: 0, data_vencimento: "", forma_pagamento: "", numero_documento: "", status: "Pendente", valor_pago: 0, data_pagamento: "", recorrente: false, observacoes: "" };
+const defaultReceber = { descricao: "", categoria: "Serviço", cliente: "", obra_referencia: "", proposta_referencia: "", valor: 0, data_vencimento: "", forma_recebimento: "", numero_nf: "", status: "Pendente", valor_recebido: 0, data_recebimento: "", observacoes: "" };
+const defaultDespFixa = { descricao: "", categoria: "Operacional", valor: 0, dia_vencimento: 1, ativa: true, observacoes: "" };
+
 function GenericFormDialog({
   open, onOpenChange, title, fields, initial, onSave, loading,
 }: {
@@ -168,7 +174,8 @@ function GenericFormDialog({
     fields.forEach(f => {
       if (f.required) {
         const val = form[f.name];
-        if (val === undefined || val === null || val === "" || (f.type === "number" && Number(val) === 0)) {
+        const isEmpty = val === undefined || val === null || val === "" || (f.type === "number" && (val === 0 || val === ""));
+        if (isEmpty) {
           newErrors[f.name] = `${f.label} é obrigatório`;
         }
       }
@@ -179,9 +186,13 @@ function GenericFormDialog({
 
   const handleSave = () => {
     if (!validate()) {
+      const missingFields = fields
+        .filter(f => f.required && (!form[f.name] || (f.type === "number" && !Number(form[f.name]))))
+        .map(f => f.label);
+
       toast({ 
         title: "Campos obrigatórios", 
-        description: "Por favor, preencha os campos marcados com (*)", 
+        description: `Os seguintes campos precisam ser preenchidos: ${missingFields.join(", ")}`, 
         variant: "destructive" 
       });
       return;
@@ -189,61 +200,74 @@ function GenericFormDialog({
     onSave(form);
   };
 
+  // Only reset when 'open' becomes true or when initial is explicitly changed from outside (e.g. selecting a different item to edit)
   useEffect(() => { 
     if (open) {
-      setForm(initial);
+      const sanitized = { ...initial };
+      // Garantir que campos de data venham formatados como YYYY-MM-DD para o input
+      fields.forEach(f => {
+        if (f.type === "date" && sanitized[f.name] && typeof sanitized[f.name] === "string") {
+          sanitized[f.name] = sanitized[f.name].split("T")[0];
+        }
+      });
+      setForm(sanitized);
       setErrors({});
     }
-  }, [open, initial]);
+  }, [open, initial.id || initial.descricao]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <div className="grid gap-3 py-2">
-          {fields.map((f) => (
-            <div key={f.name} className="space-y-1">
-              <Label className={errors[f.name] ? "text-destructive" : ""}>
-                {f.label}{f.required && " *"}
-              </Label>
-              {f.type === "select" ? (
-                <Select value={form[f.name] || ""} onValueChange={(v) => set(f.name, v)}>
-                  <SelectTrigger className={errors[f.name] ? "border-destructive ring-destructive" : ""}>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {f.options?.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              ) : f.type === "textarea" ? (
-                <Textarea 
-                  value={form[f.name] || ""} 
-                  onChange={(e) => set(f.name, e.target.value)} 
-                  rows={2} 
-                  className={errors[f.name] ? "border-destructive ring-destructive" : ""}
-                />
-              ) : f.type === "checkbox" ? (
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" checked={!!form[f.name]} onChange={(e) => set(f.name, e.target.checked)} className="h-4 w-4" />
-                  <span className="text-sm text-muted-foreground">Sim</span>
-                </div>
-              ) : (
-                <Input
-                  type={f.type} 
-                  value={form[f.name] ?? ""}
-                  placeholder={f.required ? "Campo obrigatório" : ""}
-                  onChange={(e) => set(f.name, f.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
-                  step={f.type === "number" ? "0.01" : undefined}
-                  className={errors[f.name] ? "border-destructive ring-destructive" : ""}
-                />
-              )}
-              {errors[f.name] && <p className="text-[10px] text-destructive mt-0.5">{errors[f.name]}</p>}
-            </div>
-          ))}
+          {fields.map((f) => {
+            const hasError = !!errors[f.name];
+            return (
+              <div key={f.name} className="space-y-1">
+                <Label className={hasError ? "text-destructive font-semibold" : ""}>
+                  {f.label}{f.required && " *"}
+                </Label>
+                {f.type === "select" ? (
+                  <Select value={form[f.name] || ""} onValueChange={(v) => set(f.name, v)}>
+                    <SelectTrigger className={hasError ? "border-destructive ring-destructive bg-destructive/5" : ""}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {f.options?.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : f.type === "textarea" ? (
+                  <Textarea 
+                    value={form[f.name] || ""} 
+                    onChange={(e) => set(f.name, e.target.value)} 
+                    rows={2} 
+                    className={hasError ? "border-destructive ring-destructive bg-destructive/5 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]" : ""}
+                  />
+                ) : f.type === "checkbox" ? (
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={!!form[f.name]} onChange={(e) => set(f.name, e.target.checked)} className="h-4 w-4" />
+                    <span className="text-sm text-muted-foreground">Sim</span>
+                  </div>
+                ) : (
+                  <Input
+                    type={f.type} 
+                    value={form[f.name] ?? ""}
+                    placeholder={f.required ? "Campo obrigatório" : ""}
+                    onChange={(e) => set(f.name, f.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+                    step={f.type === "number" ? "0.01" : undefined}
+                    className={hasError ? "border-destructive ring-destructive bg-destructive/5 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]" : ""}
+                  />
+                )}
+                {hasError && <p className="text-[10px] text-destructive font-medium mt-0.5">{errors[f.name]}</p>}
+              </div>
+            );
+          })}
         </div>
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={loading}>Salvar</Button>
+          <Button onClick={handleSave} disabled={loading} className="bg-primary hover:bg-primary/90">
+            {loading ? "Salvando..." : "Salvar Registro"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -325,7 +349,11 @@ function FinanceiroContent() {
   const mesStart = startOfMonth(parseISO(mesAtual + "-01"));
   const mesEnd = endOfMonth(mesStart);
   const inMonth = (d: string) => {
-    try { return isWithinInterval(parseISO(d), { start: mesStart, end: mesEnd }); }
+    try { 
+      if (!d) return false;
+      const datePart = d.includes("T") ? d.split("T")[0] : d;
+      return isWithinInterval(parseISO(datePart), { start: mesStart, end: mesEnd }); 
+    }
     catch { return false; }
   };
 
@@ -375,6 +403,12 @@ function FinanceiroContent() {
     mutationFn: async (data: any) => {
       const payload = { ...data, user_id: userId };
       delete payload.id; delete payload.created_at; delete payload.updated_at;
+      
+      // Sanitizar: strings vazias devem ser null para não quebrar tipos no banco (date, uuid, etc)
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") payload[key] = null;
+      });
+
       if (editItem?.id) {
         const { error } = await supabase.from("contas_pagar").update(payload).eq("id", editItem.id);
         if (error) throw error;
@@ -391,6 +425,12 @@ function FinanceiroContent() {
     mutationFn: async (data: any) => {
       const payload = { ...data, user_id: userId };
       delete payload.id; delete payload.created_at; delete payload.updated_at;
+
+      // Sanitizar
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") payload[key] = null;
+      });
+
       if (editItem?.id) {
         const { error } = await supabase.from("contas_receber").update(payload).eq("id", editItem.id);
         if (error) throw error;
@@ -407,6 +447,12 @@ function FinanceiroContent() {
     mutationFn: async (data: any) => {
       const payload = { ...data, user_id: userId };
       delete payload.id; delete payload.created_at; delete payload.updated_at;
+
+      // Sanitizar
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === "") payload[key] = null;
+      });
+
       if (editItem?.id) {
         const { error } = await supabase.from("despesas_fixas").update(payload).eq("id", editItem.id);
         if (error) throw error;
@@ -527,16 +573,12 @@ function FinanceiroContent() {
 
   const fieldsDespFixa: FormField[] = [
     { name: "descricao", label: "Descrição", type: "text", required: true },
-    { name: "categoria", label: "Categoria", type: "select", options: ["Aluguel", "Salários", "Energia", "Internet", "Telefone", "Água", "Contabilidade", "Software", "Seguros", "Impostos", "Marketing", "Operacional", "Outros"] },
+    { name: "categoria", label: "Categoria", type: "select", options: DESPESAS_FIXAS_CATEGORIAS },
     { name: "valor", label: "Valor Mensal (R$)", type: "number", required: true },
     { name: "dia_vencimento", label: "Dia do Vencimento", type: "number" },
     { name: "ativa", label: "Ativa", type: "checkbox" },
     { name: "observacoes", label: "Observações", type: "textarea" },
   ];
-
-  const defaultPagar = { descricao: "", categoria: "Outros", fornecedor: "", valor: 0, data_vencimento: format(new Date(), "yyyy-MM-dd"), forma_pagamento: "", numero_documento: "", status: "Pendente", valor_pago: 0, data_pagamento: "", recorrente: false, observacoes: "" };
-  const defaultReceber = { descricao: "", categoria: "Serviço", cliente: "", obra_referencia: "", proposta_referencia: "", valor: 0, data_vencimento: format(new Date(), "yyyy-MM-dd"), forma_recebimento: "", numero_nf: "", status: "Pendente", valor_recebido: 0, data_recebimento: "", observacoes: "" };
-  const defaultDespFixa = { descricao: "", categoria: "Operacional", valor: 0, dia_vencimento: 1, ativa: true, observacoes: "" };
 
   const filterFn = (item: any) => {
     if (!search) return true;
@@ -634,7 +676,7 @@ function FinanceiroContent() {
                         <TableCell><Badge variant="outline">{c.categoria}</Badge></TableCell>
                         <TableCell>{c.fornecedor}</TableCell>
                         <TableCell className="text-right font-mono">{BRL(Number(c.valor))}</TableCell>
-                        <TableCell>{format(parseISO(c.data_vencimento), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{c.data_vencimento ? format(parseISO(c.data_vencimento.split("T")[0]), "dd/MM/yyyy") : "—"}</TableCell>
                         <TableCell>{c.forma_pagamento}</TableCell>
                         <TableCell><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] || ""}`}>{c.status}</span></TableCell>
                         <TableCell>
@@ -689,7 +731,7 @@ function FinanceiroContent() {
                         <TableCell><Badge variant="outline">{c.categoria}</Badge></TableCell>
                         <TableCell>{c.cliente}</TableCell>
                         <TableCell className="text-right font-mono">{BRL(Number(c.valor))}</TableCell>
-                        <TableCell>{format(parseISO(c.data_vencimento), "dd/MM/yyyy")}</TableCell>
+                        <TableCell>{c.data_vencimento ? format(parseISO(c.data_vencimento.split("T")[0]), "dd/MM/yyyy") : "—"}</TableCell>
                         <TableCell>{c.proposta_referencia}</TableCell>
                         <TableCell><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] || ""}`}>{c.status}</span></TableCell>
                         <TableCell>
