@@ -298,21 +298,16 @@ router.get('/users', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: admin only' });
     }
 
-    const requesterEmail = adminCheck.rows[0].email?.toLowerCase().trim();
-    const isSuperDev = requesterEmail === 'dev@nikoscience.tech';
-
     // Impedir qualquer cache no navegador ou proxy
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
 
     // Se não for o SuperDev, o SQL vai retornar explicitamente NULL no campo last_failed_ip
     const result = await pool.query(`
-      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked,
-      (CASE WHEN $1 = true THEN u.last_failed_ip ELSE NULL END) as last_failed_ip
+      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked, u.last_failed_ip
       FROM auth_users u 
       LEFT JOIN sys_roles r ON u.role_id = r.id
-      WHERE u.email != 'dev@nikoscience.tech'
       ORDER BY u.email ASC
-    `, [isSuperDev]);
+    `);
     
     res.json(result.rows);
   } catch (err) {
@@ -366,17 +361,13 @@ router.get('/audit', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: admin only' });
     }
 
-    const requesterEmail = adminCheck.rows[0].email?.toLowerCase().trim();
-    const isSuperDev = requesterEmail === 'dev@nikoscience.tech';
-
     const result = await pool.query(`
-      SELECT l.id, l.action, l.table_name, l.record_id, l.details, 
-      (CASE WHEN $1 = true THEN l.ip_address ELSE '[PROTEGIDO]' END) as ip_address,
+      SELECT l.id, l.action, l.table_name, l.record_id, l.details, l.ip_address,
       l.created_at, u.email as user_email
       FROM sys_audit_logs l
       LEFT JOIN auth_users u ON l.user_id = u.id
       ORDER BY l.created_at DESC LIMIT 100
-    `, [isSuperDev]);
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Error fetching audit logs' });
@@ -416,6 +407,7 @@ router.put('/users/:id/email', async (req, res) => {
 
 router.post('/users/:id/reset-password', async (req, res) => {
   try {
+    const { password: customPassword } = req.body;
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'No token' });
     const token = authHeader.split(' ')[1];
@@ -427,7 +419,26 @@ router.post('/users/:id/reset-password', async (req, res) => {
     }
 
     const targetId = req.params.id;
-    const newPassword = 'HC-' + Math.random().toString(36).slice(-6).toUpperCase();
+    let newPassword = customPassword;
+
+    // Se não informou senha, gera uma forte
+    if (!newPassword) {
+      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+      newPassword = "";
+      for (let i = 0; i < 12; i++) {
+        newPassword += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+    } else {
+      // Validação básica se vier customizada
+      const hasLetter = /[a-zA-Z]/.test(newPassword);
+      const hasNumber = /[0-9]/.test(newPassword);
+      const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword);
+      
+      if (newPassword.length < 6 || !hasLetter || !hasNumber || !hasSpecial) {
+        return res.status(400).json({ error: 'Senha fraca! Deve ter pelo menos 6 caracteres, letras, números e caracteres especiais.' });
+      }
+    }
+
     const hash = await bcrypt.hash(newPassword, 12);
     
     await pool.query('UPDATE auth_users SET password_hash = $1 WHERE id = $2', [hash, targetId]);
@@ -437,7 +448,7 @@ router.post('/users/:id/reset-password', async (req, res) => {
       const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
       await pool.query(
         'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Resetou senha do usuário', ip]
+        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Resetou senha do usuário (senha forte)', ip]
       );
     } catch(e) {}
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, ShieldAlert, Key, UserPlus, Mail, Lock, Edit2, RotateCcw, Check, X, Copy, AlertTriangle, Unlock, UserX, Info, Globe } from "lucide-react";
+import { Shield, ShieldAlert, Key, UserPlus, Mail, Lock, Edit2, RotateCcw, Check, X, Copy, AlertTriangle, Unlock, UserX, Info, Globe, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
@@ -65,6 +65,10 @@ export default function UsersAdmin() {
   const [resetResult, setResetResult] = useState<{ email: string; password: string } | null>(null);
   const [userToReset, setUserToReset] = useState<any>(null);
   const [lockoutUserInfo, setLockoutUserInfo] = useState<any>(null); // Modal de detalhes do bloqueio
+  const [resetPasswordInput, setResetPasswordInput] = useState(""); // Senha manual no reset
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState(""); // Confirmação manual no reset
+  const [showResetPassword, setShowResetPassword] = useState(false); // Toggle olho
+  const [resetMode, setResetMode] = useState<"none" | "manual">("none");
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["admin_users"],
@@ -75,9 +79,8 @@ export default function UsersAdmin() {
       if (!res.ok) throw new Error("Acesso negado");
       return res.json();
     },
-    enabled: userRole === 'admin',
-    staleTime: 0, // Garante que a lista seja sempre buscada do servidor
-    gcTime: 0    // Limpa a memória pra garantir que o IP não fique "preso"
+    staleTime: 0,
+    gcTime: 0
   });
 
   const mutCreateUser = useMutation({
@@ -121,14 +124,19 @@ export default function UsersAdmin() {
     mutationFn: async (user: any) => {
       const res = await fetch(`${API_URL}/auth/users/${user.id}/reset-password`, {
         method: 'POST',
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPasswordInput || undefined })
       });
-      if (!res.ok) throw new Error("Erro ao resetar");
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao resetar");
       return { email: user.email, password: data.newPassword };
     },
     onSuccess: (data) => {
       setUserToReset(null);
+      setResetPasswordInput("");
+      setResetPasswordConfirm("");
+      setShowResetPassword(false);
+      setResetMode("none");
       setResetResult(data);
     },
     onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" })
@@ -165,16 +173,6 @@ export default function UsersAdmin() {
       toast({ title: "Perfil atualizado!" });
     }
   });
-
-  if (userRole !== 'admin') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Acesso Restrito</h2>
-        <p className="text-muted-foreground">Apenas administradores globais podem gerenciar usuários do sistema.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -231,23 +229,133 @@ export default function UsersAdmin() {
         </Dialog>
       </div>
 
-      <AlertDialog open={!!userToReset} onOpenChange={(open) => !open && setUserToReset(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-warning"><AlertTriangle className="h-5 w-5" /> Resetar Senha?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você está prestes a resetar a senha de <b>{userToReset?.email}</b>. 
-              Uma nova senha temporária será gerada e mostrada na tela.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Agora não</AlertDialogCancel>
-            <AlertDialogAction onClick={() => mutResetPassword.mutate(userToReset)} className="bg-warning text-warning-foreground hover:bg-warning/90">
-              Sim, Resetar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={!!userToReset} onOpenChange={(open) => { if (!open) { setUserToReset(null); setResetPasswordInput(""); setResetPasswordConfirm(""); setShowResetPassword(false); setResetMode("none"); } }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader className="relative">
+            {resetMode !== "none" && (
+              <button 
+                onClick={() => { setResetMode("none"); setResetPasswordInput(""); setResetPasswordConfirm(""); }}
+                className="absolute -left-2 top-0 p-2 text-muted-foreground hover:text-foreground transition-colors"
+                title="Voltar"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            )}
+            <DialogTitle className={`flex items-center gap-2 text-warning ${resetMode !== "none" ? "ml-6" : ""}`}>
+              <RotateCcw className="h-5 w-5" /> Resetar Senha
+            </DialogTitle>
+            <DialogDescription className={resetMode !== "none" ? "ml-6" : ""}>
+              {resetMode === "manual" ? "Defina uma senha manualmente" : `Como deseja resetar a senha de ${userToReset?.email}?`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {resetMode === "none" ? (
+              <div className="grid grid-cols-1 gap-3">
+                <Button 
+                  variant="outline" 
+                  className="h-16 flex flex-col items-center gap-1 border-primary/20 hover:border-primary/50 hover:bg-primary/5"
+                  onClick={() => mutResetPassword.mutate(userToReset)}
+                  disabled={mutResetPassword.isPending}
+                >
+                  <Key className="h-5 w-5 text-primary" />
+                  <span>Gerar Senha Automática</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Senha forte de 12 caracteres</span>
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  className="h-16 flex flex-col items-center gap-1 border-warning/20 hover:border-warning/50 hover:bg-warning/5"
+                  onClick={() => setResetMode("manual")}
+                >
+                  <Edit2 className="h-5 w-5 text-warning" />
+                  <span>Escolher Senha Manual</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">Você define a nova senha</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Digite a nova senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        type={showResetPassword ? "text" : "password"}
+                        placeholder="Senha com letras, números e símbolos" 
+                        className="pl-9 pr-9" 
+                        value={resetPasswordInput} 
+                        onChange={(e) => setResetPasswordInput(e.target.value)} 
+                        autoFocus
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowResetPassword(!showResetPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />} 
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Confirme a nova senha</Label>
+                    <div className="relative">
+                      <Check className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        type={showResetPassword ? "text" : "password"}
+                        placeholder="Repita a senha" 
+                        className="pl-9 pr-9" 
+                        value={resetPasswordConfirm} 
+                        onChange={(e) => setResetPasswordConfirm(e.target.value)} 
+                      />
+                    </div>
+                    {resetPasswordInput && resetPasswordConfirm && resetPasswordInput !== resetPasswordConfirm && (
+                      <p className="text-[10px] text-destructive flex items-center gap-1">
+                        <X className="h-3 w-3" /> As senhas não conferem
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 border-t border-border mt-2 pt-2">
+                    <p className={`text-[11px] flex items-center gap-1.5 ${resetPasswordInput.length >= 6 ? "text-success" : "text-muted-foreground"}`}>
+                      {resetPasswordInput.length >= 6 ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />} Pelo menos 6 caracteres
+                    </p>
+                    <p className={`text-[11px] flex items-center gap-1.5 ${/[a-zA-Z]/.test(resetPasswordInput) ? "text-success" : "text-muted-foreground"}`}>
+                      {/[a-zA-Z]/.test(resetPasswordInput) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />} Letras (az, AZ)
+                    </p>
+                    <p className={`text-[11px] flex items-center gap-1.5 ${/[0-9]/.test(resetPasswordInput) ? "text-success" : "text-muted-foreground"}`}>
+                      {/[0-9]/.test(resetPasswordInput) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />} Números (0-9)
+                    </p>
+                    <p className={`text-[11px] flex items-center gap-1.5 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(resetPasswordInput) ? "text-success" : "text-muted-foreground"}`}>
+                      {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(resetPasswordInput) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />} Caracteres especiais
+                    </p>
+                  </div>
+                </div>
+
+                <Button 
+                  className="w-full bg-warning text-warning-foreground hover:bg-warning/90" 
+                  onClick={() => mutResetPassword.mutate(userToReset)}
+                  disabled={
+                    mutResetPassword.isPending || 
+                    resetPasswordInput !== resetPasswordConfirm ||
+                    resetPasswordInput.length < 6 || 
+                    !/[a-zA-Z]/.test(resetPasswordInput) || 
+                    !/[0-9]/.test(resetPasswordInput) || 
+                    !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(resetPasswordInput)
+                  }
+                >
+                  Salvar Nova Senha
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" className="w-full" onClick={() => setUserToReset(null)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!resetResult} onOpenChange={(open) => !open && setResetResult(null)}>
         <DialogContent className="sm:max-w-[400px]">
