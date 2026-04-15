@@ -16,6 +16,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 const statusColors: Record<string, string> = {
   Planejada: "bg-muted text-muted-foreground",
@@ -87,7 +88,7 @@ export default function Obras() {
 
   const allStatuses = ["Todos", "Planejada", "Em Mobilização", "Em Andamento", "Pausada", "Concluída", "Cancelada"];
 
-  // Detail view
+  // Detail view (form dialog stays mounted so "Editar" from detail works)
   if (selectedObra) {
     return (
       <>
@@ -95,6 +96,12 @@ export default function Obras() {
           obra={selectedObra}
           onBack={() => setSelectedObra(null)}
           onEdit={() => { setEditingObra(selectedObra); setDialogOpen(true); }}
+        />
+        <ObraFormDialog
+          open={dialogOpen}
+          onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingObra(null); }}
+          obra={editingObra}
+          onSuccess={() => { void fetchObras(); }}
         />
       </>
     );
@@ -225,12 +232,8 @@ export default function Obras() {
         open={dialogOpen}
         onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditingObra(null); }}
         obra={editingObra}
-        onSuccess={fetchObras}
+        onSuccess={() => { void fetchObras(); }}
       />
     </div>
   );
-}
-
-function cn(...classes: (string | false | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
 }

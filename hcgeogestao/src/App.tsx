@@ -26,7 +26,7 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { session, loading } = useAuth();
-  console.log('v.1.0.9')
+  console.log('v.1.0.10')
   if (loading) {
     return (
       //@ts-ignore

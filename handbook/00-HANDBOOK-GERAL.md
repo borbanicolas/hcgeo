@@ -61,6 +61,7 @@ O sistema utiliza variáveis de ambiente para se portar de forma diferente em ca
 Para detalhes profundos, consulte os outros arquivos deste handbook:
 - [08. Banco de Dados](file:///\\wsl.localhost\Ubuntu-24.04\home\nicolas\nikoscience\hcgeogestao\handbook\08-banco-de-dados.md): Estrutura de tabelas e schemas.
 - [09. Infraestrutura e Automação](file:///\\wsl.localhost\Ubuntu-24.04\home\nicolas\nikoscience\hcgeogestao\handbook\09-infra-e-automacao.md): Detalhes do Nginx, Certbot e ciclo de deploy.
+- [10. Correções de Datas e Uploads](file:///\\wsl.localhost\Ubuntu-24.04\home\nicolas\nikoscience\hcgeogestao\handbook\10-correcoes-data-e-arquivos.md): Histórico de correções críticas em datas, armazenamento e links de arquivos.
 
 ---
 **Atualizado em: 06/04/2026**
