@@ -27,7 +27,8 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { session, loading } = useAuth();
-  if (import.meta.env.DEV) console.info(`[HC GeoGestão] ${APP_VERSION}`);
+  console.log("v:", APP_VERSION)
+  console.info(`[HC GeoGestão] ${APP_VERSION}`);
   if (loading) {
     return (
       //@ts-ignore
