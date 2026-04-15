@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { API_URL } from "@/lib/api";
+import { apiJsonHeaders } from "@/lib/apiClient";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,6 @@ function FinanceiroPasswordGate({ onUnlock }: { onUnlock: () => void }) {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState(false);
   const [loading, setLoading] = useState(false);
-  console.log('v0.0.2')
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -51,7 +51,7 @@ function FinanceiroPasswordGate({ onUnlock }: { onUnlock: () => void }) {
     try {
       const res = await fetch(`${API_URL}/auth/verify-financeiro`, {
         method: 'POST',
-        headers: { "Content-Type": "application/json" },
+        headers: apiJsonHeaders(null),
         body: JSON.stringify({ password: senha })
       });
 

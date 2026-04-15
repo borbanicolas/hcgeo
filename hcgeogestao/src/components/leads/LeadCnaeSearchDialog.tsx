@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Building2, MapPin, Phone, Mail, Plus, Loader2, Info, Hash } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders, apiJsonHeaders } from "@/lib/apiClient";
 
 interface LeadCnaeSearchDialogProps {
   open: boolean;
@@ -32,7 +33,7 @@ export function LeadCnaeSearchDialog({ open, onOpenChange, onImported }: LeadCna
       if (cnaeCode) url += `cnae=${encodeURIComponent(cnaeCode)}`;
 
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
 
       if (!res.ok) throw new Error("Erro na busca por CNAE");
@@ -66,10 +67,7 @@ export function LeadCnaeSearchDialog({ open, onOpenChange, onImported }: LeadCna
 
       const res = await fetch(`${API_URL}/api/leads`, {
         method: 'POST',
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify(payload)
       });
 

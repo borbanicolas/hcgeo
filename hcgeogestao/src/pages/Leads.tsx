@@ -9,6 +9,7 @@ import { LeadFormDialog } from "@/components/leads/LeadFormDialog";
 import { LeadKanban } from "@/components/leads/LeadKanban";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders } from "@/lib/apiClient";
 import { LeadSearchDialog } from "@/components/leads/LeadSearchDialog";
 import { LeadCnaeSearchDialog } from "@/components/leads/LeadCnaeSearchDialog";
 import {
@@ -50,7 +51,7 @@ const Leads = () => {
     try {
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/leads`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       
       const data = await res.json();
@@ -71,7 +72,7 @@ const Leads = () => {
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/leads/${deleteId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Erro na exclusão");
       toast.success("Lead excluído");

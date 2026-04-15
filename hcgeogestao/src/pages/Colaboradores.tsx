@@ -14,7 +14,7 @@ import {
   Plus, Search, Pencil, Trash2, FileText, Phone, Mail, Briefcase, Clock,
   AlertTriangle, ShieldCheck, HardHat, Stethoscope, Syringe, Users, Building2,
 } from "lucide-react";
-import { format, differenceInDays, parseISO } from "date-fns";
+import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -22,6 +22,18 @@ import {
 
 function cn(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(" ");
+}
+
+function safeParseDate(value?: string | null) {
+  if (!value) return null;
+  const normalized = value.includes("T") ? value : `${value}T12:00:00`;
+  const parsed = parseISO(normalized);
+  return isValid(parsed) ? parsed : null;
+}
+
+function safeFormatDate(value?: string | null, fmt = "dd/MM/yyyy") {
+  const parsed = safeParseDate(value);
+  return parsed ? format(parsed, fmt) : "—";
 }
 
 interface DocAlert {
@@ -76,7 +88,9 @@ function ColaboradoresTab() {
     const addItems = (data: any[] | null, tipo: DocAlert["tipo"], getDesc: (i: any) => string) => {
       (data || []).forEach((item: any) => {
         if (!item.data_validade) return;
-        const dias = differenceInDays(parseISO(item.data_validade), new Date());
+        const validade = safeParseDate(item.data_validade);
+        if (!validade) return;
+        const dias = differenceInDays(validade, new Date());
         if (dias <= 30) {
           items.push({
             colaboradorNome: colabMap[item.colaborador_id] || "—",
@@ -238,7 +252,7 @@ function ColaboradoresTab() {
                   )}
                   {colab.data_admissao && (
                     <div className="text-xs text-muted-foreground pt-1 border-t border-border mt-2">
-                      Admissão: {format(new Date(colab.data_admissao + "T12:00:00"), "dd/MM/yyyy")}
+                      Admissão: {safeFormatDate(colab.data_admissao)}
                     </div>
                   )}
                 </div>

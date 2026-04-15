@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/pool');
 const authMiddleware = require('../middleware/auth');
+const { insertAuditLog } = require('../utils/auditLog');
 
 const router = express.Router();
 
@@ -219,11 +220,13 @@ router.post('/:table', async (req, res) => {
 
     // Auditoria (Silencioso)
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'Desconhecido';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.userId, 'INSERT', table, result.rows[0].id, 'Novo registro criado', ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: req.userId,
+        action: 'INSERT',
+        tableName: table,
+        recordId: result.rows[0].id,
+        details: 'Novo registro criado',
+      });
     } catch(err) { console.warn('Erro ao salvar audit log:', err.message); }
 
     res.status(201).json(result.rows[0]);
@@ -273,11 +276,13 @@ router.patch('/:table/:id', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'Desconhecido';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.userId, 'UPDATE', table, id, `Atualizou campos: ${keys.join(', ')}`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: req.userId,
+        action: 'UPDATE',
+        tableName: table,
+        recordId: id,
+        details: `Atualizou campos: ${keys.join(', ')}`,
+      });
     } catch(err) { console.warn('Erro ao salvar audit log:', err.message); }
 
     res.json(result.rows[0]);
@@ -313,11 +318,13 @@ router.delete('/:table/:id', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || 'Desconhecido';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [req.userId, 'DELETE', table, id, 'Registro apagado', ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: req.userId,
+        action: 'DELETE',
+        tableName: table,
+        recordId: id,
+        details: 'Registro apagado',
+      });
     } catch(err) { console.warn('Erro ao salvar audit log:', err.message); }
 
     res.json({ deleted: true, id: result.rows[0].id });

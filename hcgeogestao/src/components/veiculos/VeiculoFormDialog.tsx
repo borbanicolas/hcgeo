@@ -19,6 +19,11 @@ const tipos = ["Caminhão", "Caminhonete", "Van", "Carro", "Moto", "Máquina", "
 const combustiveis = ["Diesel", "Gasolina", "Etanol", "Flex", "Elétrico", "GNV"];
 const statusOptions = ["Disponível", "Em uso", "Manutenção", "Inativo"];
 
+function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  return String(value).split("T")[0] || "";
+}
+
 export function VeiculoFormDialog({ open, onOpenChange, veiculo, onSaved }: VeiculoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -52,10 +57,10 @@ export function VeiculoFormDialog({ open, onOpenChange, veiculo, onSaved }: Veic
         km_atual: veiculo.km_atual || 0,
         status: veiculo.status || "Disponível",
         responsavel: veiculo.responsavel || "",
-        data_ultima_revisao: veiculo.data_ultima_revisao || "",
-        data_proxima_revisao: veiculo.data_proxima_revisao || "",
-        seguro_vencimento: veiculo.seguro_vencimento || "",
-        licenciamento_vencimento: veiculo.licenciamento_vencimento || "",
+        data_ultima_revisao: toDateInputValue(veiculo.data_ultima_revisao),
+        data_proxima_revisao: toDateInputValue(veiculo.data_proxima_revisao),
+        seguro_vencimento: toDateInputValue(veiculo.seguro_vencimento),
+        licenciamento_vencimento: toDateInputValue(veiculo.licenciamento_vencimento),
         observacoes: veiculo.observacoes || "",
       });
     } else {

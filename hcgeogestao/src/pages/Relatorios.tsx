@@ -194,8 +194,12 @@ export default function Relatorios() {
       )}
 
       <RelatorioFormDialog
+        key={editing?.id ?? "new"}
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) setEditing(null);
+        }}
         relatorio={editing}
         onSuccess={fetchRelatorios}
       />

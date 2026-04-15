@@ -17,6 +17,11 @@ interface Props {
   onSaved: () => void;
 }
 
+function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  return String(value).split("T")[0] || "";
+}
+
 export function SaidaFormDialog({ open, onOpenChange, saida, estoqueItems, onSaved }: Props) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -32,8 +37,8 @@ export function SaidaFormDialog({ open, onOpenChange, saida, estoqueItems, onSav
         estoque_id: saida.estoque_id || "",
         quantidade: String(saida.quantidade ?? 1),
         retirado_por: saida.retirado_por || "",
-        data_saida: saida.data_saida || new Date().toISOString().split("T")[0],
-        data_devolucao: saida.data_devolucao || "",
+        data_saida: toDateInputValue(saida.data_saida) || new Date().toISOString().split("T")[0],
+        data_devolucao: toDateInputValue(saida.data_devolucao),
         devolvido: saida.devolvido || false,
         destino: saida.destino || "",
         observacoes: saida.observacoes || "",

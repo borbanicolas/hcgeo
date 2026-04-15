@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -38,6 +38,48 @@ interface Props {
   onSuccess: () => void;
 }
 
+/** HTML date inputs only accept YYYY-MM-DD; DB often returns full ISO strings. */
+function toDateInputValue(v: string | null | undefined): string {
+  if (v == null || v === "") return "";
+  const part = String(v).split("T")[0]?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(part) ? part : "";
+}
+
+function relatorioToFormState(relatorio: any | null | undefined, emptyDates: string) {
+  if (!relatorio) {
+    return {
+      titulo: "",
+      tipo: "Relatório Técnico",
+      status: "Em Elaboração",
+      obra_id: "",
+      data_emissao: emptyDates,
+      data_entrega: "",
+      responsavel: "",
+      revisor: "",
+      versao: "1.0",
+      descricao: "",
+      conclusoes: "",
+      recomendacoes: "",
+      observacoes: "",
+    };
+  }
+  return {
+    titulo: relatorio.titulo ?? "",
+    tipo: relatorio.tipo || "Relatório Técnico",
+    status: relatorio.status || "Em Elaboração",
+    obra_id: relatorio.obra_id != null ? String(relatorio.obra_id) : "",
+    data_emissao: toDateInputValue(relatorio.data_emissao) || emptyDates,
+    data_entrega: toDateInputValue(relatorio.data_entrega),
+    responsavel: relatorio.responsavel ?? "",
+    revisor: relatorio.revisor ?? "",
+    versao: relatorio.versao != null && relatorio.versao !== "" ? String(relatorio.versao) : "1.0",
+    descricao: relatorio.descricao ?? "",
+    conclusoes: relatorio.conclusoes ?? "",
+    recomendacoes: relatorio.recomendacoes ?? "",
+    observacoes: relatorio.observacoes ?? "",
+  };
+}
+
 export function RelatorioFormDialog({ open, onOpenChange, relatorio, onSuccess }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -60,42 +102,13 @@ export function RelatorioFormDialog({ open, onOpenChange, relatorio, onSuccess }
   });
 
   useEffect(() => {
-    if (open) {
-      fetchObras();
-      if (relatorio) {
-        setForm({
-          titulo: relatorio.titulo || "",
-          tipo: relatorio.tipo || "Relatório Técnico",
-          status: relatorio.status || "Em Elaboração",
-          obra_id: relatorio.obra_id || "",
-          data_emissao: relatorio.data_emissao || new Date().toISOString().split("T")[0],
-          data_entrega: relatorio.data_entrega || "",
-          responsavel: relatorio.responsavel || "",
-          revisor: relatorio.revisor || "",
-          versao: relatorio.versao || "1.0",
-          descricao: relatorio.descricao || "",
-          conclusoes: relatorio.conclusoes || "",
-          recomendacoes: relatorio.recomendacoes || "",
-          observacoes: relatorio.observacoes || "",
-        });
-      } else {
-        setForm({
-          titulo: "",
-          tipo: "Relatório Técnico",
-          status: "Em Elaboração",
-          obra_id: "",
-          data_emissao: new Date().toISOString().split("T")[0],
-          data_entrega: "",
-          responsavel: "",
-          revisor: "",
-          versao: "1.0",
-          descricao: "",
-          conclusoes: "",
-          recomendacoes: "",
-          observacoes: "",
-        });
-      }
-    }
+    if (open) void fetchObras();
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const today = new Date().toISOString().split("T")[0];
+    setForm(relatorioToFormState(relatorio, today));
   }, [open, relatorio]);
 
   const fetchObras = async () => {

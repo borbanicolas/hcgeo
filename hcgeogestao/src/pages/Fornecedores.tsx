@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { FornecedorFormDialog } from "@/components/fornecedores/FornecedorFormDialog";
 import { toast } from "sonner";
+import { whatsappUrlFromPhone } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -85,7 +86,9 @@ const Fornecedores = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((f, i) => (
+          {filtered.map((f, i) => {
+            const wa = whatsappUrlFromPhone(f.telefone);
+            return (
             <motion.div
               key={f.id}
               initial={{ opacity: 0, y: 8 }}
@@ -113,8 +116,14 @@ const Fornecedores = () => {
               )}
 
               <div className="mt-3 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                {f.telefone && (
-                  <a href={`tel:${f.telefone}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                {wa && (
+                  <a
+                    href={wa}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="WhatsApp"
+                    className="text-muted-foreground hover:text-[hsl(var(--success))] transition-colors"
+                  >
                     <Phone className="h-4 w-4" />
                   </a>
                 )}
@@ -131,7 +140,8 @@ const Fornecedores = () => {
                 </button>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Search, MapPin, Phone, Globe, Plus, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders, apiJsonHeaders } from "@/lib/apiClient";
 
 interface LeadSearchDialogProps {
   open: boolean;
@@ -27,7 +28,7 @@ export function LeadSearchDialog({ open, onOpenChange, onImported }: LeadSearchD
     try {
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/search/places?q=${encodeURIComponent(query)}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
 
       if (!res.ok) {
@@ -71,10 +72,7 @@ export function LeadSearchDialog({ open, onOpenChange, onImported }: LeadSearchD
 
       const res = await fetch(`${API_URL}/api/leads`, {
         method: 'POST',
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify(payload)
       });
 

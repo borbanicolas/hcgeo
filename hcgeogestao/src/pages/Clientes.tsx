@@ -8,6 +8,8 @@ import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { ImportLeadDialog } from "@/components/ImportLeadDialog";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders } from "@/lib/apiClient";
+import { whatsappUrlFromPhone } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -31,7 +33,7 @@ const Clientes = () => {
     try {
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/clientes`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Erro na API");
       const data = await res.json();
@@ -52,7 +54,7 @@ const Clientes = () => {
       const token = localStorage.getItem("hcgeotoken");
       const res = await fetch(`${API_URL}/api/clientes/${deleteId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Erro na exclusão");
       toast.success("Cliente excluído");
@@ -141,7 +143,9 @@ const Clientes = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((cliente, i) => (
+          {filtered.map((cliente, i) => {
+            const wa = whatsappUrlFromPhone(cliente.telefone);
+            return (
             <motion.div
               key={cliente.id}
               initial={{ opacity: 0, y: 8 }}
@@ -181,8 +185,14 @@ const Clientes = () => {
               )}
 
               <div className="mt-3 flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                {cliente.telefone && (
-                  <a href={`tel:${cliente.telefone}`} className="text-muted-foreground hover:text-foreground transition-colors">
+                {wa && (
+                  <a
+                    href={wa}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="WhatsApp"
+                    className="text-muted-foreground hover:text-[hsl(var(--success))] transition-colors"
+                  >
                     <Phone className="h-4 w-4" />
                   </a>
                 )}
@@ -199,7 +209,8 @@ const Clientes = () => {
                 </button>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
 

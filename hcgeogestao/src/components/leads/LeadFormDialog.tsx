@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { upsertCliente } from "@/lib/clienteSync";
 import { API_URL } from "@/lib/api";
+import { apiJsonHeaders } from "@/lib/apiClient";
 
 const STATUS_OPTIONS = [
   "Novo", "Qualificado", "Portfólio Enviado", "Reunião Agendada",
@@ -103,10 +104,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, onSaved }: LeadFormDi
 
       const response = await fetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify(payload)
       });
 

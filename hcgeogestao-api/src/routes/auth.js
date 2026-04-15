@@ -3,10 +3,20 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/pool');
+const { insertAuditLog } = require('../utils/auditLog');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_2026';
 const TOKEN_EXPIRY = '1h';
+
+/** E-mails (minúsculos) autorizados a truncar sys_audit_logs — só o servidor decide; configure via AUDIT_LOG_RESET_EMAILS. */
+const AUDIT_RESET_EMAILS = (
+  process.env.AUDIT_LOG_RESET_EMAILS ||
+  'dev@nikoscience.com,dev@nikoscience.tech,dev@nikoscience'
+)
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
 
 // ─── Public Register ────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
@@ -36,11 +46,13 @@ router.post('/register', async (req, res) => {
 
     // Auditoria: Registro Público
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [id, 'REGISTER', 'auth_users', id, `Novo usuário registrado: ${email}`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: id,
+        action: 'REGISTER',
+        tableName: 'auth_users',
+        recordId: id,
+        details: `Novo usuário registrado: ${email}`,
+      });
     } catch(e) {}
 
     // Auto-login after registration
@@ -88,11 +100,13 @@ router.post('/signup', async (req, res) => {
 
     // Auditoria: Registro
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [id, 'SIGNUP', 'auth_users', id, `Novo usuário: ${email} (${role_name})`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: id,
+        action: 'SIGNUP',
+        tableName: 'auth_users',
+        recordId: id,
+        details: `Novo usuário: ${email} (${role_name})`,
+      });
     } catch(e) {}
 
     res.status(201).json({
@@ -124,11 +138,13 @@ router.post('/signin', async (req, res) => {
     if (result.rows.length === 0) {
       // Auditoria: Tentativa com e-mail inexistente
       try {
-        const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-        await pool.query(
-          'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-          [null, 'LOGIN_FAILURE', 'auth_users', null, `Tentativa com usuário inexistente: ${email}`, ip]
-        );
+        await insertAuditLog(pool, req, {
+          userId: null,
+          action: 'LOGIN_FAILURE',
+          tableName: 'auth_users',
+          recordId: null,
+          details: `Tentativa com usuário inexistente: ${email}`,
+        });
       } catch(e) {}
       
       return res.status(401).json({ error: 'Invalid credentials' });
@@ -160,10 +176,13 @@ router.post('/signin', async (req, res) => {
           ? `Conta bloqueada após 5 erros: ${email}` 
           : `Falha de login ${newAttempts}/5 para: ${email}`;
           
-        await pool.query(
-          'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-          [user.id, 'LOGIN_FAILURE', 'auth_users', user.id, details, ip]
-        );
+        await insertAuditLog(pool, req, {
+          userId: user.id,
+          action: 'LOGIN_FAILURE',
+          tableName: 'auth_users',
+          recordId: user.id,
+          details,
+        });
       } catch(e) {}
       
       return res.status(401).json({ error: 'Auth failed' });
@@ -180,10 +199,13 @@ router.post('/signin', async (req, res) => {
 
     // Auditoria: Login com Sucesso
     try {
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [user.id, 'LOGIN_SUCCESS', 'auth_users', user.id, `Usuário entrou no sistema: ${email}`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: user.id,
+        action: 'LOGIN_SUCCESS',
+        tableName: 'auth_users',
+        recordId: user.id,
+        details: `Usuário entrou no sistema: ${email}`,
+      });
     } catch(e) {}
 
     res.json({
@@ -336,11 +358,13 @@ router.put('/users/:id/role', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'UPDATE', 'auth_users', targetId, `Alterou cargo para: ${role_name}`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'UPDATE',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: `Alterou cargo para: ${role_name}`,
+      });
     } catch(e) {}
 
     res.json({ success: true, role: role_name });
@@ -374,6 +398,42 @@ router.get('/audit', async (req, res) => {
   }
 });
 
+/** Limpar histórico de auditoria — apenas e-mails em AUDIT_RESET_EMAILS (ex.: dev@nikoscience.com). */
+router.post('/audit/reset', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+
+    const userRow = await pool.query(
+      'SELECT u.email FROM auth_users u WHERE u.id = $1',
+      [decoded.sub]
+    );
+    if (userRow.rows.length === 0) return res.status(403).json({ error: 'Forbidden' });
+
+    const email = (userRow.rows[0].email || '').toLowerCase().trim();
+    if (!AUDIT_RESET_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Apenas o desenvolvedor autorizado pode limpar os logs.' });
+    }
+
+    await pool.query('TRUNCATE TABLE sys_audit_logs');
+
+    await insertAuditLog(pool, req, {
+      userId: decoded.sub,
+      action: 'RESET',
+      tableName: 'sys_audit_logs',
+      recordId: null,
+      details: 'Histórico de auditoria limpo (ação de desenvolvedor)',
+    });
+
+    res.json({ success: true, message: 'Logs reiniciados.' });
+  } catch (err) {
+    console.error('[AUTH] audit reset:', err.message);
+    res.status(500).json({ error: 'Erro ao limpar logs' });
+  }
+});
+
 router.put('/users/:id/email', async (req, res) => {
   try {
     const { email } = req.body;
@@ -392,11 +452,13 @@ router.put('/users/:id/email', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'UPDATE', 'auth_users', targetId, `Alterou e-mail para: ${email}`, ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'UPDATE',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: `Alterou e-mail para: ${email}`,
+      });
     } catch(e) {}
 
     res.json({ success: true, email });
@@ -445,11 +507,13 @@ router.post('/users/:id/reset-password', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Resetou senha do usuário (senha forte)', ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'UPDATE',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: 'Resetou senha do usuário (senha forte)',
+      });
     } catch(e) {}
 
     res.json({ success: true, newPassword });
@@ -475,11 +539,13 @@ router.post('/users/:id/unblock', async (req, res) => {
 
     // Auditoria
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.ip || '0.0.0.0';
-      await pool.query(
-        'INSERT INTO sys_audit_logs (user_id, action, table_name, record_id, details, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-        [decoded.sub, 'UPDATE', 'auth_users', targetId, 'Desbloqueou conta do usuário', ip]
-      );
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'UPDATE',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: 'Desbloqueou conta do usuário',
+      });
     } catch(e) {}
 
     res.json({ success: true });

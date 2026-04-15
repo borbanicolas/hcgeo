@@ -4,6 +4,7 @@ import { Shield, ShieldAlert, Key, UserPlus, Mail, Lock, Edit2, RotateCcw, Check
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders, apiJsonHeaders } from "@/lib/apiClient";
 
 import {
   Table,
@@ -74,7 +75,7 @@ export default function UsersAdmin() {
     queryKey: ["admin_users"],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/auth/users`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Acesso negado");
       return res.json();
@@ -87,7 +88,7 @@ export default function UsersAdmin() {
     mutationFn: async () => {
       const res = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({ email: newEmail, password: newPassword, role_name: newRole })
       });
       const data = await res.json();
@@ -107,7 +108,7 @@ export default function UsersAdmin() {
     mutationFn: async ({ id, email }: { id: string, email: string }) => {
       const res = await fetch(`${API_URL}/auth/users/${id}/email`, {
         method: 'PUT',
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({ email })
       });
       if (!res.ok) throw new Error("Erro ao atualizar e-mail");
@@ -124,7 +125,7 @@ export default function UsersAdmin() {
     mutationFn: async (user: any) => {
       const res = await fetch(`${API_URL}/auth/users/${user.id}/reset-password`, {
         method: 'POST',
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({ password: resetPasswordInput || undefined })
       });
       const data = await res.json();
@@ -146,7 +147,7 @@ export default function UsersAdmin() {
     mutationFn: async (id: string) => {
       const res = await fetch(`${API_URL}/auth/users/${id}/unblock`, {
         method: 'POST',
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Erro ao desbloquear");
       return res.json();
@@ -162,7 +163,7 @@ export default function UsersAdmin() {
     mutationFn: async ({ id, newRole }: { id: string, newRole: string }) => {
       const res = await fetch(`${API_URL}/auth/users/${id}/role`, {
         method: 'PUT',
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({ role_name: newRole })
       });
       if (!res.ok) throw new Error("Falha ao atualizar");

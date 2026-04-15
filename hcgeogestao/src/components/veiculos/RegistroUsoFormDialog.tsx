@@ -15,6 +15,11 @@ interface RegistroUsoFormDialogProps {
   onSaved: () => void;
 }
 
+function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  return String(value).split("T")[0] || "";
+}
+
 export function RegistroUsoFormDialog({ open, onOpenChange, veiculoId, registro, onSaved }: RegistroUsoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -32,7 +37,7 @@ export function RegistroUsoFormDialog({ open, onOpenChange, veiculoId, registro,
     if (registro) {
       setForm({
         colaborador_nome: registro.colaborador_nome || "",
-        data: registro.data || new Date().toISOString().split("T")[0],
+        data: toDateInputValue(registro.data) || new Date().toISOString().split("T")[0],
         hora_ligado: registro.hora_ligado || "",
         hora_desligado: registro.hora_desligado || "",
         km_inicio: String(registro.km_inicio || ""),

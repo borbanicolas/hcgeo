@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { API_URL } from "@/lib/api";
+import { apiJsonHeaders } from "@/lib/apiClient";
 
 const STATUSES = [
   "Novo",
@@ -77,10 +78,7 @@ export function LeadKanban({ leads, onEdit, onDelete, onRefresh }: LeadKanbanPro
       
       const res = await fetch(`${API_URL}/api/leads/${leadId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({ status: newStatus })
       });
       

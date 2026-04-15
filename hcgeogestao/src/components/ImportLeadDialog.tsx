@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, UserCheck, Phone, Mail, Building2, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders, apiJsonHeaders } from "@/lib/apiClient";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,7 @@ export function ImportLeadDialog({ isOpen, onOpenChange, onSuccess }: ImportLead
     queryKey: ["leads_to_import"],
     queryFn: async () => {
       const res = await fetch(`${API_URL}/api/leads`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: apiAuthHeaders(token),
       });
       if (!res.ok) throw new Error("Falha ao buscar leads");
       return res.json();
@@ -57,10 +58,7 @@ export function ImportLeadDialog({ isOpen, onOpenChange, onSuccess }: ImportLead
       // 1. Criar o Cliente
       const clientRes = await fetch(`${API_URL}/api/clientes`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({
           razao_social: lead.empresa || lead.nome_contato,
           nome_fantasia: lead.empresa || "",
@@ -79,10 +77,7 @@ export function ImportLeadDialog({ isOpen, onOpenChange, onSuccess }: ImportLead
       // 2. Atualizar o Lead com o ID do novo Cliente (USANDO PATCH conforme o crud.js)
       const updateLeadRes = await fetch(`${API_URL}/api/leads/${lead.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify({
           cliente_id: clientData.id,
           status: lead.status // GARANTINDO que o status não mude e ele continue no Kanban!

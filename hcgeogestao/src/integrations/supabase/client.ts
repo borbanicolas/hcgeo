@@ -1,4 +1,5 @@
 import { API_URL } from "@/lib/api";
+import { apiAuthHeaders, apiJsonHeaders } from "@/lib/apiClient";
 
 const getToken = () => localStorage.getItem("hcgeotoken");
 
@@ -115,10 +116,7 @@ class MockQueryBuilder {
       
       const res = await fetch(this.url.toString(), {
         method: this.method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
-        },
+        headers: apiJsonHeaders(getToken()),
         body: this.body ? JSON.stringify(this.body) : undefined,
       });
 
@@ -166,9 +164,7 @@ export const supabase = {
         try {
           const res = await fetch(`${API_URL}/upload`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${getToken()}`,
-            },
+            headers: apiAuthHeaders(getToken()),
             body: formData,
           });
           if (!res.ok) throw new Error("Falha no upload");
@@ -200,10 +196,7 @@ export const supabase = {
     try {
       const res = await fetch(`${API_URL}/rpc/${func}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`,
-        },
+        headers: apiJsonHeaders(getToken()),
         body: JSON.stringify(args)
       });
       if (!res.ok) throw new Error("RPC falhou");

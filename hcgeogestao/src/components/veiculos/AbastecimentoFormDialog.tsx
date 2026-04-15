@@ -15,6 +15,11 @@ interface AbastecimentoFormDialogProps {
   onSaved: () => void;
 }
 
+function toDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  return String(value).split("T")[0] || "";
+}
+
 export function AbastecimentoFormDialog({ open, onOpenChange, veiculoId, abastecimento, onSaved }: AbastecimentoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -31,7 +36,7 @@ export function AbastecimentoFormDialog({ open, onOpenChange, veiculoId, abastec
   useEffect(() => {
     if (abastecimento) {
       setForm({
-        data: abastecimento.data || new Date().toISOString().split("T")[0],
+        data: toDateInputValue(abastecimento.data) || new Date().toISOString().split("T")[0],
         litros: String(abastecimento.litros || ""),
         valor_total: String(abastecimento.valor_total || ""),
         valor_litro: String(abastecimento.valor_litro || ""),

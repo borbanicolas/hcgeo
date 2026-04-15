@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
+import { apiJsonHeaders } from "@/lib/apiClient";
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -30,7 +31,7 @@ export default function Auth() {
     try {
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiJsonHeaders(null),
         body: JSON.stringify({ email, password })
       });
 

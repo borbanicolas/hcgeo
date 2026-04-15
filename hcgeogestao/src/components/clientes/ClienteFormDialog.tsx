@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { API_URL } from "@/lib/api";
+import { apiJsonHeaders } from "@/lib/apiClient";
 
 interface ClienteFormDialogProps {
   open: boolean;
@@ -86,10 +87,7 @@ export function ClienteFormDialog({ open, onOpenChange, cliente, onSaved }: Clie
 
       const response = await fetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
+        headers: apiJsonHeaders(token),
         body: JSON.stringify(payload)
       });
 

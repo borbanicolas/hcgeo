@@ -21,12 +21,13 @@ import Configuracoes from "@/pages/Configuracoes";
 import NotFound from "@/pages/NotFound";
 import UsersAdmin from "@/pages/UsersAdmin";
 import AuditLog from "@/pages/AuditLog";
+import { APP_VERSION } from "@/lib/appVersion";
 
 const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { session, loading } = useAuth();
-  console.log('v.1.0.11')
+  if (import.meta.env.DEV) console.info(`[HC GeoGestão] ${APP_VERSION}`);
   if (loading) {
     return (
       //@ts-ignore
