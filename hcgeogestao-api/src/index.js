@@ -13,7 +13,7 @@ const externalRoutes = require('./routes/external');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+console.log('version: 0.1.26')
 // ─── Middleware ──────────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'https://hcgeo.nikoscience.tech',
@@ -101,11 +101,11 @@ const initDB = async () => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
+
     // Apply schema update if the table already existed without IP
     try {
       await pool.query('ALTER TABLE sys_audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(50);');
-    } catch (ignore) {}
+    } catch (ignore) { }
 
     console.log('✅ Auto-migration: Roles tables and relations ensured');
   } catch (err) {
