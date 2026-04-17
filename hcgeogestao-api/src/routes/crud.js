@@ -281,7 +281,81 @@ router.patch('/:table/:id', async (req, res) => {
   }
 });
 
-// ─── DELETE ─────────────────────────────────────────────────────────
+// ─── DELETE (By Query Parameters) ──────────────────────────────────
+router.delete('/:table', async (req, res) => {
+  const { table } = req.params;
+  if (!validateTable(table)) {
+    return res.status(400).json({ error: `Invalid table: ${table}` });
+  }
+
+  console.log(`\n[DEBUG BACKEND] 🔴 Requisição DELETE recebida para a tabela: ${table}`);
+  console.log(`[DEBUG BACKEND] 🔍 Query Params recebidos:`, req.query);
+
+  try {
+    const filters = { ...req.query };
+    if (Object.keys(filters).length === 0) {
+      return res.status(400).json({ error: 'Filtros obrigatórios para DELETE em lote' });
+    }
+
+    let query = `DELETE FROM ${table}`;
+    const params = [];
+
+    for (let [key, rawValue] of Object.entries(filters)) {
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+
+      for (const val of values) {
+        let value = val;
+        let operator = '=';
+        
+        if (typeof val === 'string' && val.includes('.')) {
+          const parts = val.split('.');
+          const op = parts[0];
+          const actualVal = parts.slice(1).join('.');
+          const ops = { 'eq': '=', 'neq': '!=', 'gt': '>', 'gte': '>=', 'lt': '<', 'lte': '<=' };
+          if (ops[op]) {
+            operator = ops[op];
+            value = actualVal;
+          } else if (op === 'in') {
+            const list = actualVal.replace(/[()]/g, '').split(',');
+            params.push(list);
+            const connector = params.length === 1 ? 'WHERE' : 'AND';
+            query += ` ${connector} ${table}.${key} = ANY($${params.length})`;
+            continue;
+          }
+        }
+
+        params.push(value);
+        const connector = params.length === 1 ? 'WHERE' : 'AND';
+        query += ` ${connector} ${table}.${key} ${operator} $${params.length}`;
+      }
+    }
+
+    query += ' RETURNING id';
+    console.log(`[DEBUG BACKEND] 🛠️  SQL Gerada (DELETE):`, query);
+
+    const result = await pool.query(query, params);
+    
+    // Auditoria opcional em lote
+    if (result.rows.length > 0) {
+      try {
+        await insertAuditLog(pool, req, {
+          userId: req.userId,
+          action: 'DELETE',
+          tableName: table,
+          recordId: null,
+          details: `Foram apagados ${result.rows.length} registros`,
+        });
+      } catch(err) {} 
+    }
+
+    res.json({ deletedCount: result.rows.length, ids: result.rows.map(r => r.id) });
+  } catch (err) {
+    console.error(`[CRUD] DELETE /${table} error:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE (By ID) ──────────────────────────────────────────────────
 router.delete('/:table/:id', async (req, res) => {
   const { table, id } = req.params;
   if (!validateTable(table)) {
