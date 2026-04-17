@@ -83,12 +83,6 @@ router.get('/:table', async (req, res) => {
     let query = `SELECT ${selectClause} FROM ${table} ${joinSql}`;
     const params = [];
 
-    // Filter by user_id for data isolation
-    if (hasUserId) {
-      params.push(req.userId);
-      query += ` WHERE ${table}.user_id = $${params.length}`;
-    }
-
     // Support filtering via query params (e.g. ?id=5)
     const filters = { ...req.query };
     delete filters.order;
@@ -124,14 +118,14 @@ router.get('/:table', async (req, res) => {
           } else if (op === 'in') {
             const list = actualVal.replace(/[()]/g, '').split(',');
             params.push(list);
-            const connector = params.length === 1 && !hasUserId ? 'WHERE' : 'AND';
+            const connector = params.length === 1 ? 'WHERE' : 'AND';
             query += ` ${connector} ${table}.${key} = ANY($${params.length})`;
             continue;
           }
         }
 
         params.push(value);
-        const connector = params.length === 1 && !hasUserId ? 'WHERE' : 'AND';
+        const connector = params.length === 1 ? 'WHERE' : 'AND';
         query += ` ${connector} ${table}.${key} ${operator} $${params.length}`;
       }
     }
@@ -152,9 +146,14 @@ router.get('/:table', async (req, res) => {
 
     console.log(`[DEBUG BACKEND] 🛠️  SQL Gerada:`, query);
     console.log(`[DEBUG BACKEND] 📦 Parâmetros SQL:`, params);
+    console.log(`[DEBUG BACKEND] 🔎 Buscando TUDO da tabela: ${table}...`);
 
     const result = await pool.query(query, params);
     console.log(`[DEBUG BACKEND] ✅ Resultados encontrados:`, result.rows.length);
+    if (table === 'propostas') {
+       console.log(`[DEBUG BACKEND] 📊 DADOS COMPLETOS EXTRAÍDOS DA TABELA (GET):`);
+       console.dir(result.rows, { depth: null, colors: true });
+    }
     res.json(result.rows);
   } catch (err) {
     console.error(`[CRUD] GET /${table} error:`, err.message);
@@ -170,14 +169,8 @@ router.get('/:table/:id', async (req, res) => {
   }
 
   try {
-    const hasUserId = !NO_USER_ID_TABLES.includes(table);
     let query = `SELECT * FROM ${table} WHERE id = $1`;
     const params = [id];
-
-    if (hasUserId) {
-      params.push(req.userId);
-      query += ` AND user_id = $${params.length}`;
-    }
 
     const result = await pool.query(query, params);
     if (result.rows.length === 0) {
@@ -259,19 +252,15 @@ router.patch('/:table/:id', async (req, res) => {
     values.push(id);
     const idPlaceholder = `$${values.length}`;
 
-    const hasUserId = !NO_USER_ID_TABLES.includes(table);
-    let query = `UPDATE ${table} SET ${setClause} WHERE id = ${idPlaceholder}`;
-
-    if (hasUserId) {
-      values.push(req.userId);
-      query += ` AND user_id = $${values.length}`;
-    }
-
-    query += ' RETURNING *';
+    let query = `UPDATE ${table} SET ${setClause} WHERE id = ${idPlaceholder} RETURNING *`;
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Record not found' });
+    }
+
+    if (table === 'propostas') {
+       console.log(`[DEBUG BACKEND] 📤 Enviando para o Front (PATCH):`, JSON.stringify(result.rows[0]));
     }
 
     // Auditoria
@@ -300,16 +289,8 @@ router.delete('/:table/:id', async (req, res) => {
   }
 
   try {
-    const hasUserId = !NO_USER_ID_TABLES.includes(table);
-    let query = `DELETE FROM ${table} WHERE id = $1`;
+    let query = `DELETE FROM ${table} WHERE id = $1 RETURNING id`;
     const params = [id];
-
-    if (hasUserId) {
-      params.push(req.userId);
-      query += ` AND user_id = $${params.length}`;
-    }
-
-    query += ' RETURNING id';
 
     const result = await pool.query(query, params);
     if (result.rows.length === 0) {

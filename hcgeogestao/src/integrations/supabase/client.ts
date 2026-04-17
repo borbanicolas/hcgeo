@@ -99,10 +99,11 @@ class MockQueryBuilder {
   }
 
   async execute() {
-    const isMedicao = this.table === 'medicoes';
-    if (isMedicao) {
-      console.log(`[DEBUG FRONT] 🚀 Executando query para tabela: ${this.table}`);
+    const shouldLog = this.table === 'medicoes' || this.table === 'propostas';
+    if (shouldLog) {
+      console.log(`[DEBUG FRONT] 🚀 Executando ${this.method} para tabela: ${this.table}`);
       console.log(`[DEBUG FRONT] 🔗 URL Completa:`, this.url.toString());
+      if (this.body) console.log(`[DEBUG FRONT] 📦 Payload Enviado:`, this.body);
     }
     
     try {
@@ -122,13 +123,13 @@ class MockQueryBuilder {
 
       if (!res.ok) {
         const error = await res.json();
-        if (isMedicao) console.error(`[DEBUG FRONT] ❌ Erro na API:`, error);
+        if (shouldLog) console.error(`[DEBUG FRONT] ❌ Erro na API:`, error);
         return { data: null, error: new Error(error.error || "API Error") };
       }
       
       let data = await res.json();
-      if (isMedicao) {
-        console.log(`[DEBUG FRONT] ✨ Dados recebidos:`, Array.isArray(data) ? `${data.length} registros` : 'objeto único');
+      if (shouldLog) {
+        console.log(`[DEBUG FRONT] ✨ Dados recebidos para ${this.table}:`, Array.isArray(data) ? `${data.length} registros` : 'objeto único', data);
       }
       
       if (this.singleResult && Array.isArray(data)) {
@@ -137,7 +138,7 @@ class MockQueryBuilder {
       
       return { data, error: null };
     } catch (e: any) {
-      if (isMedicao) console.error(`[DEBUG FRONT] 🔥 Erro fatal no fetch:`, e);
+      if (shouldLog) console.error(`[DEBUG FRONT] 🔥 Erro fatal no fetch:`, e);
       return { data: null, error: e };
     }
   }
