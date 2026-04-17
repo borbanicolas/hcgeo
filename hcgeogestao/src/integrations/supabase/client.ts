@@ -98,6 +98,11 @@ class MockQueryBuilder {
     return this;
   }
 
+  limit(val: number) {
+    this.url.searchParams.set('limit', String(val));
+    return this;
+  }
+
   async execute() {
     const shouldLog = this.table === 'medicoes' || this.table === 'propostas';
     if (shouldLog) {
