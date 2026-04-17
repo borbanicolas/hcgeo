@@ -187,28 +187,43 @@ router.get('/:table/:id', async (req, res) => {
 router.post('/:table', async (req, res) => {
   const { table } = req.params;
   console.log(`\n[DEBUG BACKEND] 🔵 Requisição POST (Criar) recebida para a tabela: ${table}`);
-  console.log(`[DEBUG BACKEND] 📦 Payload recebido:`, req.body);
   console.log(`[DEBUG BACKEND] 🔑 User ID vinculando:`, req.userId);
 
   if (!validateTable(table)) {
-    console.log(`[DEBUG BACKEND] 🛑 Erro: Tabela inválida (${table})`);
     return res.status(400).json({ error: `Invalid table: ${table}` });
   }
 
   try {
-    const data = { ...req.body };
     const hasUserId = !NO_USER_ID_TABLES.includes(table);
+    const isArray = Array.isArray(req.body);
+    const items = isArray ? req.body : [req.body];
 
-    // Inject user_id for data isolation
-    if (hasUserId) {
-      data.user_id = req.userId;
+    if (items.length === 0) {
+      return res.status(400).json({ error: 'Nenhum dado enviado' });
     }
 
-    const keys = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = keys.map((_, i) => `$${i + 1}`);
+    // Identifica colunas validando o primeiro item do array
+    const columnsObj = { ...items[0] };
+    if (hasUserId) columnsObj.user_id = req.userId;
+    const keys = Object.keys(columnsObj);
 
-    const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
+    const values = [];
+    let placeholdersArray = [];
+    let idx = 1;
+
+    for (const item of items) {
+      const rowData = { ...item };
+      if (hasUserId) rowData.user_id = req.userId;
+
+      const itemPlaceholders = [];
+      for (const key of keys) {
+        values.push(rowData[key] !== undefined ? rowData[key] : null);
+        itemPlaceholders.push(`$${idx++}`);
+      }
+      placeholdersArray.push(`(${itemPlaceholders.join(', ')})`);
+    }
+
+    const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholdersArray.join(', ')} RETURNING *`;
     const result = await pool.query(query, values);
 
     // Auditoria (Silencioso)
@@ -217,12 +232,12 @@ router.post('/:table', async (req, res) => {
         userId: req.userId,
         action: 'INSERT',
         tableName: table,
-        recordId: result.rows[0].id,
-        details: 'Novo registro criado',
+        recordId: result.rows[0]?.id || null,
+        details: isArray ? `Foram inseridos ${result.rows.length} registros em lote` : 'Novo registro criado',
       });
-    } catch(err) { console.warn('Erro ao salvar audit log:', err.message); }
+    } catch(err) {}
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(isArray ? result.rows : result.rows[0]);
   } catch (err) {
     console.error(`[CRUD] POST /${table} error:`, err.message);
     res.status(500).json({ error: err.message });

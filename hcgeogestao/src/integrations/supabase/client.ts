@@ -23,7 +23,7 @@ class MockQueryBuilder {
 
   insert(data: any | any[]) {
     this.method = 'POST';
-    this.body = Array.isArray(data) ? data[0] : data;
+    this.body = data;
     return this;
   }
 
