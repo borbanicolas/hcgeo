@@ -185,11 +185,13 @@ const Dashboard = () => {
   };
 
   const stats = [
-    { label: "Leads Ativos", value: String(leadsAtivos), icon: Users, color: "text-info", path: "/leads" },
+    /*
+     { label: "Leads Ativos", value: String(leadsAtivos), icon: Users, color: "text-info", path: "/leads" },
     { label: "Pipeline", value: formatCurrency(pipeline), icon: TrendingUp, color: "text-accent", path: "/leads" },
     { label: "Propostas Abertas", value: String(propostasAbertas), icon: FileText, color: "text-pipeline-proposta", path: "/propostas" },
     { label: "Propostas Aprovadas", value: String(propostasAprovadas), icon: CheckCircle2, color: "text-success", path: "/propostas" },
     { label: "Obras em Andamento", value: String(obrasAndamento), icon: HardHat, color: "text-success", path: "/obras" },
+    */
   ];
 
   return (
@@ -371,7 +373,7 @@ const Dashboard = () => {
         </motion.div>
       </div>
 
-      {/* Pipeline visual */}
+      {/* Pipeline visual (Comentado a pedido)
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -399,6 +401,7 @@ const Dashboard = () => {
           ))}
         </div>
       </motion.div>
+      */}
     </div>
   );
 };

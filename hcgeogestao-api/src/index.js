@@ -15,8 +15,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 console.log('version: 0.1.26')
 // ─── Middleware ──────────────────────────────────────────────────────
+let corsOrigin = process.env.CORS_ORIGIN || 'https://hcgeo.nikoscience.tech';
+if (typeof corsOrigin === 'string' && corsOrigin.includes(',')) {
+  corsOrigin = corsOrigin.split(',').map(s => s.trim());
+}
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'https://hcgeo.nikoscience.tech',
+  origin: corsOrigin,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
