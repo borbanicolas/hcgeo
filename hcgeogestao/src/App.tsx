@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
+import { API_URL } from "@/lib/api";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
@@ -25,10 +27,47 @@ import { APP_VERSION } from "@/lib/appVersion";
 
 const queryClient = new QueryClient();
 
+const logErrorToApi = async (message: string, details: any, component = "Global") => {
+  try {
+    const token = localStorage.getItem("hcgeotoken");
+    await fetch(`${API_URL}/auth/audit/error`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ message, details: typeof details === 'string' ? details : String(details), component })
+    });
+  } catch (e) {
+    console.error("Failed to log error to backend", e);
+  }
+};
+
 function AppRoutes() {
   const { session, loading } = useAuth();
   console.log("v:", APP_VERSION)
   console.info(`[HC GeoGestão] ${APP_VERSION}`);
+
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      logErrorToApi(event.message, event.error?.stack || event.error, "window.onerror");
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      logErrorToApi(
+        event.reason?.message || "Unhandled Promise Rejection",
+        event.reason?.stack || event.reason,
+        "window.unhandledrejection"
+      );
+    };
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleRejection);
+    };
+  }, []);
+
   if (loading) {
     return (
       //@ts-ignore

@@ -434,6 +434,42 @@ router.post('/audit/reset', async (req, res) => {
   }
 });
 
+// ─── Logar um Erro Disparado pelo Frontend ─────────────────────────
+router.post('/audit/error', async (req, res) => {
+  try {
+    const { details, component, message } = req.body;
+    let userId = null;
+
+    // Optional user validation
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+        userId = decoded.sub;
+      } catch (e) {}
+    }
+
+    const errorDetails = `[FATAL ERROR] Frontend
+Componente: ${component || 'Global'}
+Mensagem: ${message || 'Erro Desconhecido'}
+Detalhes: ${typeof details === 'object' ? JSON.stringify(details) : (details || '')}`.substring(0, 1000);
+
+    await insertAuditLog(pool, req, {
+      userId,
+      action: 'ERROR',
+      tableName: 'front_end',
+      recordId: null,
+      details: errorDetails,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[AUTH] audit error fallback API failed:', err.message);
+    res.status(500).json({ error: 'Erro ao registrar falha' });
+  }
+});
+
 router.put('/users/:id/email', async (req, res) => {
   try {
     const { email } = req.body;

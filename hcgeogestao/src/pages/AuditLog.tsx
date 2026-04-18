@@ -1,4 +1,4 @@
-import { ShieldAlert, List, Activity, RotateCcw } from "lucide-react";
+import { ShieldAlert, List, Activity, RotateCcw, Filter, Bug } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { API_URL } from "@/lib/api";
 import { apiAuthHeaders } from "@/lib/apiClient";
@@ -9,6 +9,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -52,6 +55,32 @@ export default function AuditLog() {
     refetchInterval: 15000 // A cada 15s puxa atualizações
   });
 
+  const [filterAction, setFilterAction] = useState<string>("TODOS");
+  const [filterTable, setFilterTable] = useState<string>("TODOS");
+  const [filterUser, setFilterUser] = useState<string>("TODOS");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+
+  const uniqueTables = Array.from(new Set(logs.map((l: any) => l.table_name).filter(Boolean)));
+  const uniqueUsers = Array.from(new Set(logs.map((l: any) => l.user_email || 'Sistema').filter(Boolean)));
+
+  const filteredLogs = logs.filter((log: any) => {
+    let keep = true;
+    if (filterAction !== "TODOS" && log.action !== filterAction) keep = false;
+    if (filterTable !== "TODOS" && log.table_name !== filterTable) keep = false;
+    if (filterUser !== "TODOS" && (log.user_email || 'Sistema') !== filterUser) keep = false;
+    
+    if (dateFrom) {
+      if (new Date(log.created_at) < new Date(dateFrom)) keep = false;
+    }
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      if (new Date(log.created_at) > end) keep = false;
+    }
+    return keep;
+  });
+
   const handleResetLogs = async () => {
     if (!token) return;
     setResetting(true);
@@ -93,9 +122,24 @@ export default function AuditLog() {
             <p className="text-sm text-muted-foreground">Rastreamento de ações, edições e segurança.</p>
           </div>
         </div>
-        {canResetAuditLogs(userEmail) && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+        <div className="flex items-center gap-2">
+          {canResetAuditLogs(userEmail) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2 shrink-0 border-orange-500 text-orange-600 hover:bg-orange-50"
+              onClick={() => {
+                throw new Error("Erro de Teste (Debug) disparado intencionalmente!");
+              }}
+            >
+              <Bug className="h-4 w-4" />
+              Debug Erro
+            </Button>
+          )}
+          {canResetAuditLogs(userEmail) && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
               <Button
                 type="button"
                 variant="destructive"
@@ -126,17 +170,80 @@ export default function AuditLog() {
             </AlertDialogContent>
           </AlertDialog>
         )}
+        </div>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <List className="h-4 w-4" /> Histórico de Alterações (Em breve)
+            <List className="h-4 w-4" /> Histórico de Alterações
           </CardTitle>
-          <CardDescription>O sistema de rastreabilidade completa será ativado aqui.</CardDescription>
+          <CardDescription>O sistema de rastreabilidade completa está ativado.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto opacity-60">
+        <CardContent className="space-y-4">
+          
+          {/* Seção de Filtros */}
+          <div className="flex flex-col md:flex-row gap-4 p-4 bg-muted/30 rounded-lg border border-border">
+            <div className="flex items-center gap-2 mb-2 md:mb-0 md:mr-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold text-muted-foreground">Filtros:</span>
+            </div>
+            
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">Ação Realizada</Label>
+                <Select value={filterAction} onValueChange={setFilterAction}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todas as Ações</SelectItem>
+                    <SelectItem value="INSERT">Inclusões (INSERT)</SelectItem>
+                    <SelectItem value="UPDATE">Edições (UPDATE)</SelectItem>
+                    <SelectItem value="DELETE">Exclusões (DELETE)</SelectItem>
+                    <SelectItem value="ERROR">Falha/Erro (ERROR)</SelectItem>
+                    <SelectItem value="LOGIN">Acessos (LOGIN)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">Tabela / Módulo</Label>
+                <Select value={filterTable} onValueChange={setFilterTable}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos os Módulos</SelectItem>
+                    {uniqueTables.map((t: any) => (
+                      <SelectItem key={t as string} value={t as string}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">Usuário Responsável</Label>
+                <Select value={filterUser} onValueChange={setFilterUser}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TODOS">Todos os Usuários</SelectItem>
+                    {uniqueUsers.map((u: any) => (
+                      <SelectItem key={u as string} value={u as string}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">Data Inicial</Label>
+                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-8 text-xs" />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">Data Final</Label>
+                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-8 text-xs" />
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto opacity-100">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -151,10 +258,10 @@ export default function AuditLog() {
                 {isLoading && (
                   <TableRow><TableCell colSpan={5} className="text-center py-8">Buscando do motor do banco...</TableCell></TableRow>
                 )}
-                {!isLoading && logs.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">O sistema ainda não registrou operações hoje.</TableCell></TableRow>
+                {!isLoading && filteredLogs.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Nenhum log encontrado {logs.length > 0 ? 'com os filtros atuais' : 'hoje'}.</TableCell></TableRow>
                 )}
-                {!isLoading && logs.map((log: any) => (
+                {!isLoading && filteredLogs.map((log: any) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-mono text-xs whitespace-nowrap">
                       {format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -164,6 +271,8 @@ export default function AuditLog() {
                       <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase
                         ${log.action === 'INSERT' ? "bg-green-100 text-green-700" : 
                           log.action === 'UPDATE' ? "bg-blue-100 text-blue-700" : 
+                          log.action === 'ERROR' ? "bg-orange-100 text-orange-800" :
+                          log.action === 'LOGIN_SUCCESS' ? "bg-purple-100 text-purple-700" :
                           "bg-red-100 text-red-700"}
                       `}>
                         {log.action}
@@ -194,7 +303,7 @@ export default function AuditLog() {
                             </div>
                             <div className="flex justify-between border-b pb-2">
                               <span className="font-semibold text-muted-foreground">ID do Registro Afetado:</span>
-                              <span className="font-mono text-xs">{log.record_id || 'Não Aplicável'}</span>
+                              <span className="font-mono text-xs">{log.record_id || (log.action === 'ERROR' ? 'N/A' : 'Não Aplicável')}</span>
                             </div>
                             <div className="flex flex-col gap-2 border-b pb-2">
                               <span className="font-semibold text-muted-foreground">Histórico Capturado:</span>
