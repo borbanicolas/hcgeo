@@ -24,7 +24,7 @@ app.use(cors({
   origin: corsOrigin,
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '20mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // ─── Health check ───────────────────────────────────────────────────
