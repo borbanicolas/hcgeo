@@ -49,6 +49,7 @@ export default function Auth() {
       if (data.session && data.session.access_token) {
         localStorage.setItem("hcgeotoken", data.session.access_token);
         localStorage.setItem("hcgeouser", JSON.stringify(data.user));
+        localStorage.setItem("hcgeo_last_activity", Date.now().toString());
         window.location.href = "/";
       }
 

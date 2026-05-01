@@ -24,6 +24,7 @@ import NotFound from "@/pages/NotFound";
 import UsersAdmin from "@/pages/UsersAdmin";
 import AuditLog from "@/pages/AuditLog";
 import { APP_VERSION } from "@/lib/appVersion";
+import { SessionTimeoutModal } from "@/components/auth/SessionTimeoutModal";
 
 const queryClient = new QueryClient();
 
@@ -44,7 +45,7 @@ const logErrorToApi = async (message: string, details: any, component = "Global"
 };
 
 function AppRoutes() {
-  const { session, loading } = useAuth();
+  const { session, loading, isExpired, signOut } = useAuth();
   console.log("v:", APP_VERSION)
   console.info(`[HC GeoGestão] ${APP_VERSION}`);
 
@@ -77,7 +78,7 @@ function AppRoutes() {
     );
   }
 
-  if (!session) {
+  if (!session && !isExpired) {
     return (
       <Routes>
         <Route path="/auth" element={<Auth />} />
@@ -87,26 +88,31 @@ function AppRoutes() {
   }
 
   return (
-    <AppLayout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/leads" element={<Leads />} />
-        <Route path="/clientes" element={<Clientes />} />
-        <Route path="/propostas" element={<Propostas />} />
-        <Route path="/obras" element={<Obras />} />
-        <Route path="/medicoes" element={<Navigate to="/obras" replace />} />
-        <Route path="/estoque" element={<Estoque />} />
-        <Route path="/fornecedores" element={<Navigate to="/estoque" replace />} />
-        <Route path="/colaboradores" element={<Colaboradores />} />
-        <Route path="/usuarios" element={<UsersAdmin />} />
-        <Route path="/auditoria" element={<AuditLog />} />
-        <Route path="/financeiro" element={<Financeiro />} />
-        <Route path="/relatorios" element={<Relatorios />} />
-        <Route path="/configuracoes" element={<Configuracoes />} />
-        <Route path="/auth" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </AppLayout>
+    <>
+      <SessionTimeoutModal isOpen={isExpired} onConfirm={signOut} />
+      {!isExpired && (
+        <AppLayout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/leads" element={<Leads />} />
+            <Route path="/clientes" element={<Clientes />} />
+            <Route path="/propostas" element={<Propostas />} />
+            <Route path="/obras" element={<Obras />} />
+            <Route path="/medicoes" element={<Navigate to="/obras" replace />} />
+            <Route path="/estoque" element={<Estoque />} />
+            <Route path="/fornecedores" element={<Navigate to="/estoque" replace />} />
+            <Route path="/colaboradores" element={<Colaboradores />} />
+            <Route path="/usuarios" element={<UsersAdmin />} />
+            <Route path="/auditoria" element={<AuditLog />} />
+            <Route path="/financeiro" element={<Financeiro />} />
+            <Route path="/relatorios" element={<Relatorios />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/auth" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AppLayout>
+      )}
+    </>
   );
 }
 

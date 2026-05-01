@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, ShieldAlert, Key, UserPlus, Mail, Lock, Edit2, RotateCcw, Check, X, Copy, AlertTriangle, Unlock, UserX, Info, Globe, ChevronLeft, Eye, EyeOff } from "lucide-react";
+import { Shield, ShieldAlert, Key, UserPlus, Mail, Lock, Edit2, RotateCcw, Check, X, Copy, AlertTriangle, Unlock, UserX, Info, Globe, ChevronLeft, Eye, EyeOff, MoreVertical, Ban } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { API_URL } from "@/lib/api";
@@ -31,15 +31,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -159,6 +157,21 @@ export default function UsersAdmin() {
     }
   });
 
+  const mutBlock = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API_URL}/auth/users/${id}/block`, {
+        method: 'POST',
+        headers: apiAuthHeaders(token),
+      });
+      if (!res.ok) throw new Error("Erro ao bloquear");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin_users"] });
+      toast({ title: "🚫 Conta Bloqueada", description: "O usuário não poderá mais logar." });
+    }
+  });
+
   const mutRole = useMutation({
     mutationFn: async ({ id, newRole }: { id: string, newRole: string }) => {
       const res = await fetch(`${API_URL}/auth/users/${id}/role`, {
@@ -174,6 +187,38 @@ export default function UsersAdmin() {
       toast({ title: "Perfil atualizado!" });
     }
   });
+
+  const mutExpire = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API_URL}/auth/users/${id}/expire`, {
+        method: 'POST',
+        headers: apiAuthHeaders(token),
+      });
+      if (!res.ok) throw new Error("Erro ao expirar sessão");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin_users"] });
+      toast({ title: "Sessão expirada manualmente!" });
+    }
+  });
+
+  const getTimeRemaining = (lastActivity: string | null, forceLogout: boolean) => {
+    if (forceLogout) return "Deslogado";
+    if (!lastActivity) return "Deslogado";
+    
+    const last = new Date(lastActivity).getTime();
+    const now = new Date().getTime();
+    const diffMs = now - last;
+    const timeoutMs = 60 * 60 * 1000;
+    const remainingMs = timeoutMs - diffMs;
+    
+    if (remainingMs <= 0) return "Deslogado";
+    
+    const mins = Math.floor(remainingMs / 60000);
+    const secs = Math.floor((remainingMs % 60000) / 1000);
+    return `${mins}m ${secs}s`;
+  };
 
   return (
     <div className="space-y-6">
@@ -433,12 +478,13 @@ export default function UsersAdmin() {
               <TableHeader>
                 <TableRow>
                   <TableHead>E-mail / Status</TableHead>
+                  <TableHead>Sessão (Expira em)</TableHead>
                   <TableHead>Perfil</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={3} className="text-center py-8">Carregando...</TableCell></TableRow>}
+                {isLoading && <TableRow><TableCell colSpan={4} className="text-center py-8">Carregando...</TableCell></TableRow>}
                 {users.map((u: any) => (
                   <TableRow key={u.id} className={u.is_blocked ? "bg-destructive/5" : ""}>
                     <TableCell>
@@ -472,6 +518,16 @@ export default function UsersAdmin() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      <div className="flex flex-col gap-0.5">
+                        <span className={`text-xs font-bold ${getTimeRemaining(u.last_activity, u.force_logout) === 'Deslogado' ? 'text-destructive' : 'text-success'}`}>
+                          {getTimeRemaining(u.last_activity, u.force_logout)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Visto em: {u.last_activity ? new Date(u.last_activity).toLocaleTimeString() : 'Nunca'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Select disabled={mutRole.isPending} value={u.role || "user"} onValueChange={(val) => mutRole.mutate({ id: u.id, newRole: val })}>
                         <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -482,23 +538,53 @@ export default function UsersAdmin() {
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2 text-right">
-                        {u.is_blocked ? (
-                          <Button 
-                            variant="secondary" 
-                            size="sm" 
-                            className="gap-2 bg-success text-success-foreground hover:bg-success/90" 
-                            onClick={() => mutUnblock.mutate(u.id)}
-                            disabled={mutUnblock.isPending}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menu</span>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          
+                          <DropdownMenuItem onClick={() => setUserToReset(u)} className="cursor-pointer gap-2">
+                            <RotateCcw className="h-4 w-4 text-warning" />
+                            Resetar Senha
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem 
+                            onClick={() => mutExpire.mutate(u.id)} 
+                            disabled={getTimeRemaining(u.last_activity, u.force_logout) === 'Deslogado'}
+                            className="cursor-pointer gap-2"
                           >
-                            <Unlock className="h-3.5 w-3.5" /> Liberar
-                          </Button>
-                        ) : (
-                          <Button variant="outline" size="sm" className="gap-2 border-warning/30 hover:bg-warning/5 text-warning" onClick={() => setUserToReset(u)}>
-                            <RotateCcw className="h-3.5 w-3.5" /> Resetar
-                          </Button>
-                        )}
-                      </div>
+                            <UserX className="h-4 w-4 text-destructive" />
+                            Expirar Sessão
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator />
+                          
+                          {u.is_blocked ? (
+                            <DropdownMenuItem onClick={() => mutUnblock.mutate(u.id)} className="cursor-pointer gap-2 text-success">
+                              <Unlock className="h-4 w-4" />
+                              Desbloquear Conta
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => mutBlock.mutate(u.id)} className="cursor-pointer gap-2 text-destructive">
+                              <Ban className="h-4 w-4" />
+                              Bloquear Conta
+                            </DropdownMenuItem>
+                          )}
+
+                          {u.is_blocked && (
+                            <DropdownMenuItem onClick={() => setLockoutUserInfo(u)} className="cursor-pointer gap-2 text-muted-foreground">
+                              <Info className="h-4 w-4" />
+                              Ver Detalhes Bloqueio
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -9,6 +9,19 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_2026';
 const TOKEN_EXPIRY = '1h';
 
+// Inicialização de colunas de sessão (Executa uma vez na carga do módulo)
+(async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE auth_users 
+      ADD COLUMN IF NOT EXISTS last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS force_logout BOOLEAN DEFAULT FALSE;
+    `);
+  } catch (err) {
+    console.error('[AUTH DB] Erro ao atualizar colunas de sessão:', err.message);
+  }
+})();
+
 /** E-mails (minúsculos) autorizados a truncar sys_audit_logs — só o servidor decide; configure via AUDIT_LOG_RESET_EMAILS. */
 const AUDIT_RESET_EMAILS = (
   process.env.AUDIT_LOG_RESET_EMAILS ||
@@ -154,7 +167,7 @@ router.post('/signin', async (req, res) => {
 
     // 1. Verificar se já não está bloqueado
     if (user.is_blocked) {
-      return res.status(403).json({ error: 'Conta bloqueada por excesso de tentativas. Contate o administrador.' });
+      return res.status(403).json({ error: 'Conta foi bloqueada, contate o administrador' });
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
@@ -188,8 +201,8 @@ router.post('/signin', async (req, res) => {
       return res.status(401).json({ error: 'Auth failed' });
     }
 
-    // 2. Login com Sucesso: Zerar contador de falhas
-    await pool.query('UPDATE auth_users SET failed_attempts = 0 WHERE id = $1', [user.id]);
+    // 2. Login com Sucesso: Zerar contador de falhas e resetar force_logout
+    await pool.query('UPDATE auth_users SET failed_attempts = 0, force_logout = false, last_activity = NOW() WHERE id = $1', [user.id]);
 
     const token = jwt.sign(
       { sub: user.id, email: user.email, role: user.role },
@@ -325,7 +338,7 @@ router.get('/users', async (req, res) => {
 
     // Se não for o SuperDev, o SQL vai retornar explicitamente NULL no campo last_failed_ip
     const result = await pool.query(`
-      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked, u.last_failed_ip
+      SELECT u.id, u.email, r.name as role, u.failed_attempts, u.is_blocked, u.last_failed_ip, u.last_activity, u.force_logout
       FROM auth_users u 
       LEFT JOIN sys_roles r ON u.role_id = r.id
       ORDER BY u.email ASC
@@ -558,6 +571,39 @@ router.post('/users/:id/reset-password', async (req, res) => {
   }
 });
 
+// ─── Bloquear Usuário (Admin) ──────────────────────────────────
+router.post('/users/:id/block', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' });
+    }
+
+    const targetId = req.params.id;
+    await pool.query('UPDATE auth_users SET is_blocked = true WHERE id = $1', [targetId]);
+
+    // Auditoria
+    try {
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'UPDATE',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: 'Bloqueou conta do usuário manualmente',
+      });
+    } catch(e) {}
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error blocking user' });
+  }
+});
+
 router.post('/users/:id/unblock', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -587,6 +633,86 @@ router.post('/users/:id/unblock', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error unblocking user' });
+  }
+});
+
+// ─── Forçar Expiração de Usuário (Admin) ───────────────────────────
+router.post('/users/:id/expire', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    
+    const adminCheck = await pool.query('SELECT r.name as role FROM auth_users u LEFT JOIN sys_roles r ON u.role_id = r.id WHERE u.id = $1', [decoded.sub]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden: admin only' });
+    }
+
+    const targetId = req.params.id;
+    await pool.query('UPDATE auth_users SET force_logout = true WHERE id = $1', [targetId]);
+
+    // Auditoria
+    try {
+      await insertAuditLog(pool, req, {
+        userId: decoded.sub,
+        action: 'FORCE_LOGOUT',
+        tableName: 'auth_users',
+        recordId: targetId,
+        details: 'Expiração de sessão forçada por administrador',
+      });
+    } catch(e) {}
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error expiring user session' });
+  }
+});
+
+// ─── Atualizar Atividade e Checar Status (Ping) ──────────────────────
+router.post('/ping', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Atualiza atividade e checa se foi forçado a sair
+    const result = await pool.query(
+      'UPDATE auth_users SET last_activity = NOW() WHERE id = $1 RETURNING force_logout',
+      [decoded.sub]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    res.json({ forceLogout: result.rows[0].force_logout });
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+// ─── Logar Expiração de Sessão ──────────────────────────────────────
+router.post('/audit/timeout', async (req, res) => {
+  try {
+    const { email, userId } = req.body;
+    
+    await insertAuditLog(pool, req, {
+      userId: userId || null,
+      action: 'SESSION_EXPIRED',
+      tableName: 'auth_users',
+      recordId: userId || null,
+      details: `Sessão expirada por inatividade: ${email || 'Usuário desconhecido'}`,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[AUTH] audit timeout API failed:', err.message);
+    res.status(500).json({ error: 'Erro ao registrar expiração' });
   }
 });
 
